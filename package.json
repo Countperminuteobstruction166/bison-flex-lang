@@ -1,0 +1,140 @@
+{
+  "name": "bison-flex-lang",
+  "displayName": "Bison/Flex Language Support",
+  "description": "Full-featured language support for GNU Bison (.y, .yy) and Flex/RE-flex (.l, .ll) — syntax highlighting with embedded C/C++, real-time diagnostics, intelligent autocompletion, and hover documentation for all directives.",
+  "version": "1.0.0",
+  "publisher": "theodevelop",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/theodevelop/bison-flex-lang"
+  },
+  "icon": "images/icon.png",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Snippets"
+  ],
+  "keywords": [
+    "bison",
+    "flex",
+    "yacc",
+    "lex",
+    "re-flex",
+    "parser",
+    "lexer",
+    "grammar",
+    "compiler",
+    "syntax"
+  ],
+  "activationEvents": [
+    "onLanguage:bison",
+    "onLanguage:flex"
+  ],
+  "main": "./dist/client/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "bison",
+        "aliases": [
+          "Bison",
+          "Yacc",
+          "bison"
+        ],
+        "extensions": [
+          ".y",
+          ".yy",
+          ".ypp",
+          ".bison"
+        ],
+        "configuration": "./language-config/bison-language-configuration.json"
+      },
+      {
+        "id": "flex",
+        "aliases": [
+          "Flex",
+          "Lex",
+          "RE-flex",
+          "flex"
+        ],
+        "extensions": [
+          ".l",
+          ".ll",
+          ".lex",
+          ".flex"
+        ],
+        "configuration": "./language-config/flex-language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "bison",
+        "scopeName": "source.bison",
+        "path": "./syntaxes/bison.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.cpp": "cpp"
+        }
+      },
+      {
+        "language": "flex",
+        "scopeName": "source.flex",
+        "path": "./syntaxes/flex.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.cpp": "cpp"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "bison",
+        "path": "./snippets/bison.json"
+      },
+      {
+        "language": "flex",
+        "path": "./snippets/flex.json"
+      }
+    ],
+    "configuration": {
+      "title": "Bison & Flex",
+      "properties": {
+        "bisonFlex.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time error detection for Bison and Flex files."
+        },
+        "bisonFlex.maxDiagnostics": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum number of diagnostics to report per file."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack --mode development",
+    "compile:watch": "webpack --mode development --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "lint": "eslint client/src server/src --ext .ts"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.75.0",
+    "@vscode/vsce": "^3.7.1",
+    "merge-options": "^3.0.4",
+    "sharp": "^0.34.5",
+    "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  }
+}

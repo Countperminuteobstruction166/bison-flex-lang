@@ -1,0 +1,161 @@
+{
+  "Bison Grammar Skeleton": {
+    "prefix": "bison-skeleton",
+    "description": "Complete Bison grammar file skeleton",
+    "body": [
+      "// -*- C++ -*-",
+      "%require \"3.8\"",
+      "%language \"c++\"",
+      "",
+      "%define api.namespace {${1:parse}}",
+      "%define api.parser.class {${2:parser}}",
+      "%define api.value.type variant",
+      "%define api.token.constructor",
+      "%define parse.error verbose",
+      "",
+      "%defines",
+      "%locations",
+      "",
+      "%code requires",
+      "{",
+      "  #include <string>",
+      "  $3",
+      "}",
+      "",
+      "%code",
+      "{",
+      "  $4",
+      "}",
+      "",
+      "%token <int>         INT    \"integer\"",
+      "%token <std::string> STRING \"string\"",
+      "",
+      "%type <$5> ${6:exp}",
+      "",
+      "%start ${7:program}",
+      "",
+      "%%",
+      "",
+      "$7:",
+      "  $6 { $$ = $$1; }",
+      ";",
+      "",
+      "$6:",
+      "  INT { $$ = $8; }",
+      ";",
+      "",
+      "%%",
+      "",
+      "void",
+      "${1}::${2}::error(const location_type& l, const std::string& m)",
+      "{",
+      "  std::cerr << l << \": \" << m << std::endl;",
+      "}",
+      ""
+    ]
+  },
+  "Rule Definition": {
+    "prefix": "rule",
+    "description": "Grammar rule with action",
+    "body": [
+      "${1:name}:",
+      "  ${2:production}",
+      "   { $$ = ${3:action}; }",
+      ";"
+    ]
+  },
+  "Rule Alternative": {
+    "prefix": "alt",
+    "description": "Rule alternative",
+    "body": [
+      "| ${1:production}",
+      "   { $$ = ${2:action}; }"
+    ]
+  },
+  "Token Declaration": {
+    "prefix": "%token",
+    "description": "%token declaration with type and alias",
+    "body": [
+      "%token <${1:type}> ${2:NAME} \"${3:alias}\""
+    ]
+  },
+  "Type Declaration": {
+    "prefix": "%type",
+    "description": "%type declaration for non-terminals",
+    "body": [
+      "%type <${1:type}> ${2:nonterminal}"
+    ]
+  },
+  "Code Requires Block": {
+    "prefix": "%code requires",
+    "description": "%code requires block for declarations",
+    "body": [
+      "%code requires",
+      "{",
+      "  #include <${1:header}>",
+      "  $2",
+      "}"
+    ]
+  },
+  "Code Block": {
+    "prefix": "%code",
+    "description": "%code block",
+    "body": [
+      "%code",
+      "{",
+      "  $1",
+      "}"
+    ]
+  },
+  "Define Directive": {
+    "prefix": "%define",
+    "description": "%define variable value",
+    "body": [
+      "%define ${1|api.value.type,api.namespace,api.parser.class,api.token.prefix,api.token.constructor,parse.error,api.filename.type|} ${2:value}"
+    ]
+  },
+  "Precedence Left": {
+    "prefix": "%left",
+    "description": "Left-associative precedence declaration",
+    "body": [
+      "%left ${1:symbols}"
+    ]
+  },
+  "Precedence Right": {
+    "prefix": "%right",
+    "description": "Right-associative precedence declaration",
+    "body": [
+      "%right ${1:symbols}"
+    ]
+  },
+  "Precedence Nonassoc": {
+    "prefix": "%nonassoc",
+    "description": "Non-associative precedence declaration",
+    "body": [
+      "%nonassoc ${1:symbols}"
+    ]
+  },
+  "Prologue Block": {
+    "prefix": "%{",
+    "description": "Prologue code block",
+    "body": [
+      "%{",
+      "  $1",
+      "%}"
+    ]
+  },
+  "Empty Alternative": {
+    "prefix": "%empty",
+    "description": "Empty production",
+    "body": [
+      "%empty { $$ = ${1:value}; }"
+    ]
+  },
+  "Prec Override": {
+    "prefix": "%prec",
+    "description": "Precedence override in rule",
+    "body": [
+      "%prec ${1:TOKEN}"
+    ]
+  }
+}

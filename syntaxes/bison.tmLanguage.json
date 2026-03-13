@@ -1,0 +1,429 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Bison",
+  "scopeName": "source.bison",
+  "patterns": [
+    { "include": "#declarations-section" }
+  ],
+  "repository": {
+
+    "declarations-section": {
+      "comment": "Everything before the first %% — directives, token/type declarations, code blocks",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#prologue-code-block" },
+        { "include": "#code-directive-block" },
+        { "include": "#union-block" },
+        { "include": "#initial-action-block" },
+        { "include": "#printer-destructor-block" },
+        { "include": "#rules-section-start" },
+        { "include": "#token-directive" },
+        { "include": "#type-directive" },
+        { "include": "#precedence-directive" },
+        { "include": "#define-directive" },
+        { "include": "#require-language-skeleton" },
+        { "include": "#expect-directive" },
+        { "include": "#start-directive" },
+        { "include": "#param-directive" },
+        { "include": "#boolean-directive" },
+        { "include": "#token-continuation-line" },
+        { "include": "#strings" }
+      ]
+    },
+
+    "rules-section-start": {
+      "comment": "First %% opens the grammar rules section; second %% opens epilogue (C++)",
+      "begin": "^(%%)",
+      "end": "(?=\\z)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.separator.bison" }
+      },
+      "patterns": [
+        { "include": "#epilogue-section-start" },
+        { "include": "#grammar-rules" }
+      ]
+    },
+
+    "epilogue-section-start": {
+      "comment": "Second %% — everything after is raw C/C++",
+      "begin": "^(%%)",
+      "end": "\\z",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.separator.bison" }
+      },
+      "contentName": "meta.embedded.block.cpp",
+      "patterns": [
+        { "include": "source.cpp" }
+      ]
+    },
+
+    "grammar-rules": {
+      "comment": "Grammar rules between the two %% markers",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#inline-token-directive" },
+        { "include": "#rule-definition" },
+        { "include": "#rule-alternative" },
+        { "include": "#rule-empty" },
+        { "include": "#rule-prec" },
+        { "include": "#rule-terminator" },
+        { "include": "#semantic-values" },
+        { "include": "#action-block" },
+        { "include": "#token-reference" },
+        { "include": "#strings" }
+      ]
+    },
+
+    "rule-definition": {
+      "comment": "Rule LHS: name followed by :",
+      "match": "^([a-zA-Z_][a-zA-Z0-9_.]*)\\s*(:)",
+      "captures": {
+        "1": { "name": "entity.name.function.rule.bison" },
+        "2": { "name": "keyword.operator.colon.bison" }
+      }
+    },
+
+    "rule-alternative": {
+      "comment": "| alternative separator in rules",
+      "name": "keyword.operator.alternative.bison",
+      "match": "^\\s*\\|"
+    },
+
+    "rule-empty": {
+      "comment": "%empty in rules",
+      "name": "constant.language.empty.bison",
+      "match": "%empty"
+    },
+
+    "rule-prec": {
+      "comment": "%prec TOKEN in rules",
+      "match": "(%prec)\\s+([A-Z_][A-Z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.control.prec.bison" },
+        "2": { "name": "entity.name.constant.token.bison" }
+      }
+    },
+
+    "rule-terminator": {
+      "comment": "; at end of rule",
+      "name": "punctuation.terminator.rule.bison",
+      "match": "^\\s*;"
+    },
+
+    "token-reference": {
+      "comment": "Token references (ALL_CAPS identifiers) in rules",
+      "name": "entity.name.constant.token.bison",
+      "match": "\\b[A-Z_][A-Z0-9_]{1,}\\b"
+    },
+
+    "semantic-values": {
+      "patterns": [
+        {
+          "comment": "Typed semantic value $<type>N or $<type>$",
+          "name": "variable.language.semantic-value.bison",
+          "match": "\\$<[^>]+>(?:\\$|[0-9]+)"
+        },
+        {
+          "comment": "Semantic value $$ or $N or $name",
+          "name": "variable.language.semantic-value.bison",
+          "match": "\\$(?:\\$|[0-9]+|[a-zA-Z_][a-zA-Z0-9_]*)"
+        },
+        {
+          "comment": "Location @$ or @N or @name",
+          "name": "variable.language.location.bison",
+          "match": "@(?:\\$|[0-9]+|[a-zA-Z_][a-zA-Z0-9_]*)"
+        }
+      ]
+    },
+
+    "action-block": {
+      "comment": "Action block { C++ code } in rules — with semantic values highlighted on top of C++",
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": { "0": { "name": "punctuation.section.block.begin.bison" } },
+      "endCaptures": { "0": { "name": "punctuation.section.block.end.bison" } },
+      "contentName": "meta.embedded.block.cpp",
+      "patterns": [
+        { "include": "#semantic-values" },
+        { "include": "#action-block" },
+        { "include": "source.cpp" }
+      ]
+    },
+
+    "inline-token-directive": {
+      "comment": "%token inside rules section (e.g., %token CHUNKS \"_chunks\")",
+      "match": "^\\s*(%token)\\s+([A-Z_][A-Z0-9_]*)(?:\\s+(\"[^\"]*\"))?",
+      "captures": {
+        "1": { "name": "storage.type.token.bison" },
+        "2": { "name": "entity.name.constant.token.bison" },
+        "3": { "name": "string.quoted.double.bison" }
+      }
+    },
+
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.bison",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.bison" } },
+          "endCaptures": { "0": { "name": "punctuation.definition.comment.end.bison" } }
+        },
+        {
+          "name": "comment.line.double-slash.bison",
+          "match": "//.*$"
+        }
+      ]
+    },
+
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.bison",
+          "begin": "\"",
+          "end": "\"",
+          "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.bison" } },
+          "endCaptures": { "0": { "name": "punctuation.definition.string.end.bison" } },
+          "patterns": [
+            {
+              "name": "constant.character.escape.bison",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+
+    "prologue-code-block": {
+      "comment": "%{ ... %} prologue code block",
+      "name": "meta.prologue.bison",
+      "begin": "^(%\\{)",
+      "end": "^(%\\})",
+      "beginCaptures": { "1": { "name": "keyword.control.directive.prologue.bison" } },
+      "endCaptures": { "1": { "name": "keyword.control.directive.prologue.bison" } },
+      "contentName": "meta.embedded.block.cpp",
+      "patterns": [
+        { "include": "source.cpp" }
+      ]
+    },
+
+    "code-directive-block": {
+      "comment": "%code [qualifier] { ... } block — closing } at start of line",
+      "begin": "^\\s*(%code)(?:\\s+(requires|provides|top))?\\s*$",
+      "end": "(?=^\\s*%|^%%)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.directive.bison" },
+        "2": { "name": "keyword.other.code-qualifier.bison" }
+      },
+      "patterns": [
+        { "include": "#code-directive-inner" }
+      ]
+    },
+
+    "code-directive-inner": {
+      "patterns": [
+        {
+          "name": "meta.code-block.bison",
+          "begin": "\\{",
+          "end": "^(\\})",
+          "beginCaptures": { "0": { "name": "punctuation.section.block.begin.bison" } },
+          "endCaptures": { "1": { "name": "punctuation.section.block.end.bison" } },
+          "contentName": "meta.embedded.block.cpp",
+          "patterns": [
+            { "include": "source.cpp" }
+          ]
+        }
+      ]
+    },
+
+    "union-block": {
+      "comment": "%union { ... } block",
+      "begin": "^\\s*(%union)\\s*(\\{)",
+      "end": "^(\\})",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.directive.bison" },
+        "2": { "name": "punctuation.section.block.begin.bison" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.section.block.end.bison" }
+      },
+      "contentName": "meta.embedded.block.cpp",
+      "patterns": [
+        { "include": "source.cpp" }
+      ]
+    },
+
+    "initial-action-block": {
+      "comment": "%initial-action { ... } block",
+      "begin": "^\\s*(%initial-action)\\s*(\\{)",
+      "end": "(\\})",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.directive.bison" },
+        "2": { "name": "punctuation.section.block.begin.bison" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.section.block.end.bison" }
+      },
+      "contentName": "meta.embedded.block.cpp",
+      "patterns": [
+        { "include": "#semantic-values" },
+        { "include": "source.cpp" }
+      ]
+    },
+
+    "printer-destructor-block": {
+      "comment": "%printer / %destructor { code } <types>",
+      "begin": "^\\s*(%(?:printer|destructor))\\s*(\\{)",
+      "end": "(\\})\\s*(.*)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.directive.bison" },
+        "2": { "name": "punctuation.section.block.begin.bison" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.section.block.end.bison" },
+        "2": {
+          "patterns": [
+            { "include": "#type-tag" },
+            { "include": "#strings" }
+          ]
+        }
+      },
+      "contentName": "meta.embedded.block.cpp",
+      "patterns": [
+        { "include": "#semantic-values" },
+        { "include": "source.cpp" }
+      ]
+    },
+
+    "token-directive": {
+      "comment": "%token <type> NAME \"alias\" declarations",
+      "match": "^\\s*(%token)(?:\\s+(<[^>]+>))?\\s+(.*)",
+      "captures": {
+        "1": { "name": "storage.type.token.bison" },
+        "2": { "name": "entity.name.type.bison" },
+        "3": { "patterns": [{ "include": "#token-list" }] }
+      }
+    },
+
+    "type-directive": {
+      "comment": "%type <type> nonterminal declarations",
+      "match": "^\\s*(%(?:type|nterm))\\s+(<[^>]+>)\\s+(.*)",
+      "captures": {
+        "1": { "name": "storage.type.nonterminal.bison" },
+        "2": { "name": "entity.name.type.bison" },
+        "3": {
+          "patterns": [
+            {
+              "name": "entity.name.function.nonterminal.bison",
+              "match": "[a-zA-Z_][a-zA-Z0-9_.]*"
+            }
+          ]
+        }
+      }
+    },
+
+    "precedence-directive": {
+      "comment": "%left / %right / %nonassoc / %precedence",
+      "match": "^\\s*(%(?:left|right|nonassoc|precedence))\\s+(.*)",
+      "captures": {
+        "1": { "name": "keyword.control.directive.precedence.bison" },
+        "2": { "patterns": [{ "include": "#token-list" }] }
+      }
+    },
+
+    "define-directive": {
+      "comment": "%define variable value",
+      "match": "^\\s*(%define)\\s+([a-zA-Z_.][a-zA-Z_.0-9-]*)(?:\\s+(.+))?",
+      "captures": {
+        "1": { "name": "keyword.control.directive.bison" },
+        "2": { "name": "variable.parameter.define.bison" },
+        "3": {
+          "patterns": [
+            { "include": "#strings" },
+            {
+              "name": "string.unquoted.value.bison",
+              "match": "\\{[^}]*\\}|\\S+"
+            }
+          ]
+        }
+      }
+    },
+
+    "require-language-skeleton": {
+      "comment": "%require, %language, %skeleton with string value",
+      "match": "^\\s*(%(?:require|language|skeleton|output|file-prefix))\\s+(\"[^\"]*\")",
+      "captures": {
+        "1": { "name": "keyword.control.directive.bison" },
+        "2": { "name": "string.quoted.double.bison" }
+      }
+    },
+
+    "expect-directive": {
+      "comment": "%expect / %expect-rr N",
+      "match": "^\\s*(%expect(?:-rr)?)\\s+(\\d+)",
+      "captures": {
+        "1": { "name": "keyword.control.directive.bison" },
+        "2": { "name": "constant.numeric.bison" }
+      }
+    },
+
+    "start-directive": {
+      "comment": "%start symbol",
+      "match": "^\\s*(%start)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.control.directive.bison" },
+        "2": { "name": "entity.name.function.rule.bison" }
+      }
+    },
+
+    "param-directive": {
+      "comment": "%param / %parse-param / %lex-param { decl }",
+      "match": "^\\s*(%(?:param|parse-param|lex-param))\\s+(\\{[^}]*\\})",
+      "captures": {
+        "1": { "name": "keyword.control.directive.bison" },
+        "2": {
+          "name": "meta.embedded.block.cpp",
+          "patterns": [{ "include": "source.cpp" }]
+        }
+      }
+    },
+
+    "boolean-directive": {
+      "comment": "Standalone directives with no value",
+      "match": "^\\s*(%(?:glr-parser|locations|defines|debug|verbose|no-lines|token-table|pure-parser))",
+      "captures": {
+        "1": { "name": "keyword.control.directive.bison" }
+      }
+    },
+
+    "token-continuation-line": {
+      "comment": "Indented continuation lines for multi-line %token declarations",
+      "match": "^(\\s+)([A-Z_][A-Z0-9_]*(?:\\s+(?:\"[^\"]*\"|\\d+))?(?:\\s+[A-Z_][A-Z0-9_]*(?:\\s+(?:\"[^\"]*\"|\\d+))?)*)",
+      "captures": {
+        "2": { "patterns": [{ "include": "#token-list" }] }
+      }
+    },
+
+    "token-list": {
+      "comment": "List of token names, aliases, and values",
+      "patterns": [
+        {
+          "name": "entity.name.constant.token.bison",
+          "match": "[A-Z_][A-Z0-9_]*"
+        },
+        {
+          "name": "constant.numeric.bison",
+          "match": "\\b\\d+\\b"
+        },
+        { "include": "#strings" },
+        { "include": "#type-tag" }
+      ]
+    },
+
+    "type-tag": {
+      "comment": "<type> tag in declarations",
+      "name": "entity.name.type.bison",
+      "match": "<[^>]+>"
+    }
+  }
+}

@@ -1,0 +1,327 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Flex",
+  "scopeName": "source.flex",
+  "patterns": [
+    { "include": "#definitions-section" }
+  ],
+  "repository": {
+
+    "definitions-section": {
+      "comment": "Everything before the first %% — directives, abbreviations, code blocks",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#prologue-code-block" },
+        { "include": "#top-directive-block" },
+        { "include": "#class-directive-block" },
+        { "include": "#rules-section-start" },
+        { "include": "#option-directive" },
+        { "include": "#state-directive" },
+        { "include": "#preprocessor" },
+        { "include": "#abbreviation-def" }
+      ]
+    },
+
+    "rules-section-start": {
+      "comment": "First %% opens the rules section; second %% opens user code (C++)",
+      "begin": "^(%%)(\\s*$|\\s*/[/*].*$)",
+      "end": "(?=^%%)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.separator.flex" },
+        "2": { "patterns": [{ "include": "#comments" }] }
+      },
+      "patterns": [
+        { "include": "#user-code-section-start" },
+        { "include": "#rule-line" }
+      ]
+    },
+
+    "user-code-section-start": {
+      "comment": "Second %% — everything after is raw C/C++",
+      "begin": "^(%%)",
+      "end": "\\z",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.separator.flex" }
+      },
+      "contentName": "meta.embedded.block.cpp",
+      "patterns": [
+        { "include": "source.cpp" }
+      ]
+    },
+
+    "rule-line": {
+      "comment": "A rule: optional <SC> + pattern + action block",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#rule-with-start-condition" },
+        { "include": "#rule-pattern-action" }
+      ]
+    },
+
+    "rule-with-start-condition": {
+      "comment": "Rule prefixed with <SC_NAME> or <SC1,SC2>",
+      "begin": "^(<)([A-Z_][A-Z0-9_]*(?:,[A-Z_][A-Z0-9_]*)*)(>)",
+      "end": "$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.flex" },
+        "2": { "name": "entity.name.tag.state.flex" },
+        "3": { "name": "punctuation.definition.tag.end.flex" }
+      },
+      "patterns": [
+        { "include": "#rule-pattern-content" }
+      ]
+    },
+
+    "rule-pattern-action": {
+      "comment": "Regular rule line (no start condition prefix)",
+      "begin": "^(?!\\s*$|\\s*/[/*]|%%)",
+      "end": "$",
+      "patterns": [
+        { "include": "#rule-pattern-content" }
+      ]
+    },
+
+    "rule-pattern-content": {
+      "comment": "Pattern portion + action block within a rule line",
+      "patterns": [
+        { "include": "#action-block" },
+        { "include": "#eof-pattern" },
+        { "include": "#abbreviation-ref" },
+        { "include": "#pattern-string" },
+        { "include": "#pattern-char-class" },
+        { "include": "#pattern-escape" },
+        { "include": "#pattern-operators" },
+        { "include": "#pattern-char" }
+      ]
+    },
+
+    "action-block": {
+      "comment": "Action block { C++ code }",
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": { "0": { "name": "punctuation.section.block.begin.flex" } },
+      "endCaptures": { "0": { "name": "punctuation.section.block.end.flex" } },
+      "contentName": "meta.embedded.block.cpp",
+      "patterns": [
+        { "include": "#action-block" },
+        { "include": "#flex-builtins" },
+        { "include": "#flex-macros" },
+        { "include": "source.cpp" }
+      ]
+    },
+
+    "flex-builtins": {
+      "comment": "Flex/RE-flex built-in functions — highlighted in action blocks",
+      "name": "support.function.flex",
+      "match": "\\b(?:start|text|BEGIN|ECHO|REJECT|yymore|yyless|input|unput|yytext|yyleng|yylineno|yyin|yyout|yywrap|yyrestart)\\b"
+    },
+
+    "flex-macros": {
+      "comment": "Common user-defined macros (TOKEN, TOKEN_VAL etc.)",
+      "name": "entity.name.function.macro.flex",
+      "match": "\\b(?:TOKEN_VAL|TOKEN|CHECK_EXTENSION|YY_USER_ACTION)\\b"
+    },
+
+    "eof-pattern": {
+      "comment": "<<EOF>> special pattern",
+      "name": "constant.language.eof.flex",
+      "match": "<<EOF>>"
+    },
+
+    "abbreviation-ref": {
+      "comment": "{name} abbreviation reference in patterns",
+      "match": "(\\{)([a-zA-Z_][a-zA-Z0-9_]*)(\\})",
+      "captures": {
+        "1": { "name": "punctuation.definition.variable.begin.flex" },
+        "2": { "name": "variable.other.abbreviation.flex" },
+        "3": { "name": "punctuation.definition.variable.end.flex" }
+      }
+    },
+
+    "pattern-string": {
+      "comment": "Quoted string literal in pattern (e.g., \"array\", \"/*\")",
+      "name": "string.quoted.double.pattern.flex",
+      "begin": "\"",
+      "end": "\"",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.flex" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.string.end.flex" } },
+      "patterns": [
+        {
+          "name": "constant.character.escape.flex",
+          "match": "\\\\."
+        }
+      ]
+    },
+
+    "pattern-char-class": {
+      "comment": "Character class [abc] in regex patterns",
+      "name": "constant.other.character-class.flex",
+      "begin": "\\[",
+      "end": "\\]",
+      "beginCaptures": { "0": { "name": "punctuation.definition.character-class.begin.flex" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.character-class.end.flex" } },
+      "patterns": [
+        {
+          "name": "constant.character.escape.flex",
+          "match": "\\\\."
+        }
+      ]
+    },
+
+    "pattern-escape": {
+      "comment": "Escape sequences in patterns (\\n, \\t, \\\\, etc.)",
+      "name": "constant.character.escape.flex",
+      "match": "\\\\."
+    },
+
+    "pattern-operators": {
+      "comment": "Regex operators in patterns",
+      "name": "keyword.operator.regex.flex",
+      "match": "[+*?|()^$]"
+    },
+
+    "pattern-char": {
+      "comment": "Dot wildcard in patterns",
+      "name": "constant.character.wildcard.flex",
+      "match": "\\."
+    },
+
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.flex",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.flex" } },
+          "endCaptures": { "0": { "name": "punctuation.definition.comment.end.flex" } }
+        },
+        {
+          "name": "comment.line.double-slash.flex",
+          "match": "//.*$"
+        }
+      ]
+    },
+
+    "prologue-code-block": {
+      "comment": "%{ ... %} prologue code block",
+      "name": "meta.prologue.flex",
+      "begin": "^(%\\{)",
+      "end": "^(%\\})",
+      "beginCaptures": { "1": { "name": "keyword.control.directive.prologue.flex" } },
+      "endCaptures": { "1": { "name": "keyword.control.directive.prologue.flex" } },
+      "contentName": "meta.embedded.block.cpp",
+      "patterns": [
+        { "include": "source.cpp" }
+      ]
+    },
+
+    "top-directive-block": {
+      "comment": "%top{ ... %} RE-flex top block — closes with %} or standalone }",
+      "name": "meta.top-block.flex",
+      "begin": "^(%top)(\\s*\\{)",
+      "end": "^(%\\}|\\})",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.directive.flex" },
+        "2": { "name": "punctuation.section.block.begin.flex" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.section.block.end.flex" }
+      },
+      "contentName": "meta.embedded.block.cpp",
+      "patterns": [
+        { "include": "source.cpp" }
+      ]
+    },
+
+    "class-directive-block": {
+      "comment": "%class{ ... } RE-flex class members block",
+      "name": "meta.class-block.flex",
+      "begin": "^(%class)(\\s*\\{)",
+      "end": "^(\\})",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.directive.flex" },
+        "2": { "name": "punctuation.section.block.begin.flex" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.section.block.end.flex" }
+      },
+      "contentName": "meta.embedded.block.cpp",
+      "patterns": [
+        { "include": "source.cpp" }
+      ]
+    },
+
+    "option-directive": {
+      "comment": "%option name=value",
+      "match": "^\\s*(%option)\\s+(.*)",
+      "captures": {
+        "1": { "name": "keyword.control.directive.option.flex" },
+        "2": {
+          "patterns": [
+            {
+              "match": "([a-zA-Z_][a-zA-Z0-9_-]*)(?:(=)(\"[^\"]*\"|\\S+))?",
+              "captures": {
+                "1": { "name": "support.constant.option.flex" },
+                "2": { "name": "keyword.operator.assignment.flex" },
+                "3": { "name": "string.unquoted.value.flex" }
+              }
+            }
+          ]
+        }
+      }
+    },
+
+    "state-directive": {
+      "comment": "%x or %s start condition declarations",
+      "match": "^\\s*(%[xs])\\s+(.*)",
+      "captures": {
+        "1": { "name": "keyword.control.directive.state.flex" },
+        "2": {
+          "patterns": [
+            {
+              "name": "entity.name.tag.state.flex",
+              "match": "[A-Z_][A-Z0-9_]*"
+            }
+          ]
+        }
+      }
+    },
+
+    "preprocessor": {
+      "comment": "C preprocessor directives",
+      "name": "meta.preprocessor.flex",
+      "match": "^\\s*(#\\s*(?:include|define|undef|ifdef|ifndef|if|else|elif|endif|pragma|error|warning))\\b(.*)",
+      "captures": {
+        "1": { "name": "keyword.control.directive.preprocessor.flex" },
+        "2": {
+          "patterns": [
+            { "include": "#pattern-string" },
+            {
+              "name": "string.quoted.other.include.flex",
+              "match": "<[^>]+>"
+            }
+          ]
+        }
+      }
+    },
+
+    "abbreviation-def": {
+      "comment": "Abbreviation definition: name followed by pattern in definitions section",
+      "match": "^([a-zA-Z_][a-zA-Z0-9_]*)\\s{2,}(\\S.*)",
+      "captures": {
+        "1": { "name": "entity.name.other.abbreviation.flex" },
+        "2": {
+          "patterns": [
+            { "include": "#pattern-char-class" },
+            { "include": "#pattern-escape" },
+            { "include": "#pattern-operators" },
+            {
+              "name": "string.regexp.flex",
+              "match": "."
+            }
+          ]
+        }
+      }
+    }
+  }
+}

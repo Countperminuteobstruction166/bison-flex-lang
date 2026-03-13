@@ -1,0 +1,12 @@
+**/*.ts
+**/tsconfig*.json
+**/webpack.config.js
+client/
+server/
+node_modules/
+.vscode/
+.eslintrc.json
+.claude/
+test-parsers.ts
+images/icon.svg
+**/*.map
