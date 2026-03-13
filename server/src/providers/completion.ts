@@ -6,6 +6,9 @@ import {
   TextDocument,
 } from 'vscode-languageserver';
 import { BisonDocument, FlexDocument, DocumentModel, isBisonDocument } from '../parser/types';
+import { fileURLToPath } from 'url';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   bisonDirectiveDocs,
   bisonDefineDocs,
@@ -25,7 +28,7 @@ export function getCompletions(
   const linePrefix = lineText.substring(0, position.character);
 
   if (isBisonDocument(doc)) {
-    return getBisonCompletions(doc, linePrefix, position, text);
+    return getBisonCompletions(doc, linePrefix, position, text, textDoc);
   } else {
     return getFlexCompletions(doc, linePrefix, position, text);
   }
@@ -35,9 +38,77 @@ function getBisonCompletions(
   doc: BisonDocument,
   linePrefix: string,
   position: Position,
-  _text: string
+  _text: string,
+  textDoc: TextDocument
 ): CompletionItem[] {
   const items: CompletionItem[] = [];
+
+  // T1. %include file completions
+  if (linePrefix.match(/%include\s+["'<][^"'<>]*$/)) {
+    const match = linePrefix.match(/%include\s+["'<](.*)$/);
+    const partial = match ? match[1] : '';
+    try {
+      const fileDir = path.dirname(fileURLToPath(textDoc.uri));
+      const targetDir = partial.includes('/') || partial.includes(path.sep)
+        ? path.join(fileDir, path.dirname(partial))
+        : fileDir;
+      const entries = fs.readdirSync(targetDir, { withFileTypes: true });
+      return entries.map(entry => ({
+        label: entry.name,
+        kind: entry.isDirectory() ? CompletionItemKind.Folder : CompletionItemKind.File,
+        detail: entry.isDirectory() ? 'Directory' : 'File',
+        sortText: (entry.isDirectory() ? '0' : '1') + entry.name,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  // T3. %skeleton value completions
+  if (linePrefix.match(/%skeleton\s+\S*$/)) {
+    return [
+      { label: '"lalr1.cc"', kind: CompletionItemKind.Value, detail: 'C++ LALR(1) parser (default for C++)', sortText: '0' },
+      { label: '"glr.cc"',   kind: CompletionItemKind.Value, detail: 'C++ GLR parser',                       sortText: '1' },
+      { label: '"lalr1.c"',  kind: CompletionItemKind.Value, detail: 'C LALR(1) parser',                     sortText: '2' },
+      { label: '"glr.c"',    kind: CompletionItemKind.Value, detail: 'C GLR parser',                         sortText: '3' },
+      { label: '"location.cc"', kind: CompletionItemKind.Value, detail: 'Location tracking only',            sortText: '4' },
+    ];
+  }
+
+  // T2. %define api.value.type value completions
+  if (linePrefix.match(/%define\s+api\.value\.type\s+\S*$/)) {
+    return [
+      {
+        label: 'variant',
+        kind: CompletionItemKind.Value,
+        detail: 'C++ std::variant (Bison ≥ 3.2, requires C++17)',
+        documentation: { kind: 'markdown', value: 'Each semantic value is stored as `std::variant`. Requires `%language "c++"` and a C++17 compiler.' },
+        sortText: '0',
+      },
+      {
+        label: 'union',
+        kind: CompletionItemKind.Value,
+        detail: 'C union (classic default)',
+        documentation: { kind: 'markdown', value: 'Uses the `YYSTYPE` union. Compatible with C and older C++ Bison grammars.' },
+        sortText: '1',
+      },
+      {
+        label: 'union-directive',
+        kind: CompletionItemKind.Value,
+        detail: 'Union defined by %union directive',
+        documentation: { kind: 'markdown', value: 'Use a union body declared with `%union { ... }`.' },
+        sortText: '2',
+      },
+      {
+        label: 'std::variant<int, std::string>',
+        kind: CompletionItemKind.Value,
+        detail: 'Explicit std::variant type list',
+        insertText: 'std::variant<${1:int, std::string}>',
+        insertTextFormat: InsertTextFormat.Snippet,
+        sortText: '3',
+      },
+    ];
+  }
 
   // 1. Directive completions (after %)
   if (linePrefix.match(/%\w*$/) && !linePrefix.match(/%%.*/)) {
@@ -232,8 +303,9 @@ function getFlexCompletions(
     return items;
   }
 
-  // 4. Abbreviation completions (after {)
-  if (linePrefix.match(/\{[a-zA-Z_]*$/)) {
+  // T4. Abbreviation completions in rule patterns (after {, in rules section only)
+  const isInFlexRules = doc.separators.length > 0 && position.line > doc.separators[0];
+  if (isInFlexRules && linePrefix.match(/\{[a-zA-Z_]*$/)) {
     for (const [name, abbr] of doc.abbreviations) {
       items.push({
         label: name,
@@ -243,7 +315,21 @@ function getFlexCompletions(
         sortText: '0' + name,
       });
     }
-    return items;
+    if (items.length > 0) return items;
+  }
+
+  // Abbreviation completions in definitions section (nested abbreviations)
+  if (!isInFlexRules && linePrefix.match(/\{[a-zA-Z_]*$/)) {
+    for (const [name, abbr] of doc.abbreviations) {
+      items.push({
+        label: name,
+        kind: CompletionItemKind.Variable,
+        detail: `Abbreviation: ${abbr.pattern}`,
+        insertText: name + '}',
+        sortText: '0' + name,
+      });
+    }
+    if (items.length > 0) return items;
   }
 
   // 5. Snippets

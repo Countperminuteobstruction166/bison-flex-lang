@@ -97,6 +97,13 @@
         "path": "./snippets/flex.json"
       }
     ],
+    "iconThemes": [
+      {
+        "id": "bison-flex-icons",
+        "label": "Bison/Flex File Icons",
+        "path": "./bison-flex-icon-theme.json"
+      }
+    ],
     "configuration": {
       "title": "Bison & Flex",
       "properties": {

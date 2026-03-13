@@ -75,6 +75,25 @@ Ready-to-use templates to speed up your workflow:
 
 ---
 
+## Screenshots
+
+### Syntax Highlighting
+![Syntax highlighting with section-aware coloring and embedded C/C++](images/syntax-highlighting.png)
+
+### Hover Documentation
+![Inline hover docs for Bison directives and Flex options](images/hover-docs.png)
+
+### Autocompletion
+![Context-aware completions for directives, tokens, and semantic values](images/autocompletion.png)
+
+### Diagnostics
+![Real-time error and warning markers for undeclared tokens, missing separators, and more](images/diagnostics.png)
+
+### Snippets
+![Code snippet expansion for grammar skeletons and rule templates](images/snippets.png)
+
+---
+
 ## Supported File Types
 
 | Language | Extensions | Aliases |
@@ -144,7 +163,7 @@ Contributions are welcome! Here's how to get started:
 ### Running Tests
 
 ```bash
-npx ts-node --project server/tsconfig.json test-parsers.ts
+npx ts-node --project server/tsconfig.json tests/test-parsers.ts
 ```
 
 ### Building for Production

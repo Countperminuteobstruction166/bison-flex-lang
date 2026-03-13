@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <defs>
+    <linearGradient id="bg-b" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#c2410c"/>
+      <stop offset="100%" style="stop-color:#ea580c"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect width="24" height="24" rx="4" fill="url(#bg-b)"/>
+  <!-- Letter B -->
+  <text x="12" y="17" text-anchor="middle"
+        font-family="'Segoe UI','Arial',sans-serif"
+        font-size="14" font-weight="700"
+        fill="#fff1ee" letter-spacing="-0.5">B</text>
+</svg>
