@@ -6,7 +6,24 @@ import {
   DefineDeclaration,
   PrecedenceDeclaration,
   RuleDefinition,
+  RuleAlternative,
 } from './types';
+
+/**
+ * All directives recognized by GNU Bison (and common deprecated aliases).
+ * Anything starting with % that isn't in this set → unknown directive diagnostic.
+ */
+const KNOWN_BISON_DIRECTIVES = new Set([
+  'token', 'type', 'nterm', 'define', 'code',
+  'left', 'right', 'nonassoc', 'precedence',
+  'start', 'union', 'expect', 'expect-rr', 'require',
+  'language', 'skeleton', 'glr-parser', 'locations',
+  'defines', 'debug', 'param', 'parse-param', 'lex-param',
+  'printer', 'destructor', 'empty', 'prec',
+  'initial-action', 'verbose', 'no-lines', 'token-table',
+  'output', 'file-prefix', 'header', 'name-prefix',
+  'pure-parser', 'error-verbose',
+]);
 
 export function parseBisonDocument(text: string): BisonDocument {
   const lines = text.split(/\r?\n/);
@@ -19,6 +36,7 @@ export function parseBisonDocument(text: string): BisonDocument {
     rules: new Map(),
     separators: [],
     ruleReferences: new Map(),
+    unknownDirectives: [],
   };
 
   // Phase 1: Find %% separators (skip those inside code blocks)
@@ -163,6 +181,17 @@ export function parseBisonDocument(text: string): BisonDocument {
     }
 
     lastTokenDirectiveLine = -1;
+
+    // Unknown directive: any %word that didn't match a known pattern above
+    if (trimmed.startsWith('%') && !trimmed.startsWith('%%')) {
+      const directiveMatch = trimmed.match(/^%([a-zA-Z][a-zA-Z0-9_-]*)/);
+      if (directiveMatch && !KNOWN_BISON_DIRECTIVES.has(directiveMatch[1])) {
+        doc.unknownDirectives.push({
+          name: '%' + directiveMatch[1],
+          location: Range.create(i, 0, i, directiveMatch[0].length),
+        });
+      }
+    }
   }
 
   // Phase 3: Parse rules section
@@ -197,11 +226,21 @@ export function parseBisonDocument(text: string): BisonDocument {
           alternatives: [],
         });
       }
-      // Parse the rest of the line after ':'
+      // Parse the rest of the line after ':' as the first alternative
       const rest = trimmed.substring(ruleDefMatch[0].length);
+      const altRange = Range.create(i, 0, i, line.length);
+      const alt: RuleAlternative = { range: altRange, firstSymbol: getFirstSymbol(rest) };
+      doc.rules.get(currentRule)!.alternatives.push(alt);
       extractRuleReferences(rest, i, line, doc);
-    } else if (trimmed.startsWith('|') || currentRule) {
-      // Alternative or continuation
+    } else if (trimmed.startsWith('|') && currentRule) {
+      // New alternative: track first symbol
+      const altBody = trimmed.slice(1); // strip leading '|'
+      const altRange = Range.create(i, 0, i, line.length);
+      const alt: RuleAlternative = { range: altRange, firstSymbol: getFirstSymbol(altBody) };
+      doc.rules.get(currentRule)?.alternatives.push(alt);
+      extractRuleReferences(trimmed, i, line, doc);
+    } else if (currentRule) {
+      // Continuation of current alternative (no '|', no rule def)
       extractRuleReferences(trimmed, i, line, doc);
     }
 
@@ -226,6 +265,22 @@ export function parseBisonDocument(text: string): BisonDocument {
   }
 
   return doc;
+}
+
+/**
+ * Extract the first terminal or non-terminal symbol from a production RHS.
+ * Returns undefined for empty productions (%empty) or pure action blocks.
+ */
+function getFirstSymbol(text: string): string | undefined {
+  const cleaned = text
+    .replace(/"(?:[^"\\]|\\.)*"/g, ' ')    // remove strings
+    .replace(/\{[^}]*\}/g, ' ')            // remove inline actions
+    .replace(/%prec\s+\S+/g, ' ')          // remove %prec TOKEN
+    .replace(/%empty/g, ' ')               // remove %empty
+    .replace(/\/\/.*$/g, ' ')             // remove line comments
+    .trim();
+  const m = cleaned.match(/^([a-zA-Z_][a-zA-Z0-9_.]*)/);
+  return m ? m[1] : undefined;
 }
 
 function parseTokenNames(text: string, type: string | undefined, lineNum: number, doc: BisonDocument): void {

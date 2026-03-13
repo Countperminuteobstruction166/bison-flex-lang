@@ -203,6 +203,215 @@ for (const [key, doc] of bisonDirectiveDocs) {
 }
 
 // ════════════════════════════════════════
+// TEST 4: Diagnostic – Unknown directives (Task 1)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Unknown Directives ===\n');
+
+{
+  // Bison: %prout is not a valid directive
+  const bisonSrc = [
+    '%token NUMBER',
+    '%prout foo',          // ← unknown directive
+    '%%',
+    'start: NUMBER ;',
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(bisonSrc);
+  assert(doc.unknownDirectives.length === 1, `Bison: 1 unknown directive detected (got ${doc.unknownDirectives.length})`);
+  assert(doc.unknownDirectives[0]?.name === '%prout', `Bison: unknown directive name is '%prout' (got '${doc.unknownDirectives[0]?.name}')`);
+  assert(doc.unknownDirectives[0]?.location.start.line === 1, `Bison: unknown directive on line 1 (got ${doc.unknownDirectives[0]?.location.start.line})`);
+
+  const diags = computeBisonDiagnostics(doc, bisonSrc);
+  const unknownDiag = diags.find(d => d.message.includes('%prout'));
+  assert(unknownDiag !== undefined, `Bison: Error diagnostic emitted for '%prout'`);
+  assert(unknownDiag?.severity === 1, `Bison: unknown directive has Error severity`);
+
+  // Known directives should NOT be flagged
+  const bisonKnown = [
+    '%token NUMBER',
+    '%define api.value.type variant',
+    '%left PLUS',
+    '%%',
+    'start: NUMBER ;',
+    '%%',
+  ].join('\n');
+  const docKnown = parseBisonDocument(bisonKnown);
+  assert(docKnown.unknownDirectives.length === 0, `Bison: no false positives for known directives`);
+
+  // Flex: %woops is not valid
+  const flexSrc = [
+    '%option noyywrap',
+    '%woops bar',          // ← unknown directive
+    '%%',
+    '. ;',
+    '%%',
+  ].join('\n');
+
+  const { parseFlexDocument: pflex } = require('../server/src/parser/flexParser');
+  const flexDoc = pflex(flexSrc);
+  assert(flexDoc.unknownDirectives.length === 1, `Flex: 1 unknown directive detected (got ${flexDoc.unknownDirectives.length})`);
+  assert(flexDoc.unknownDirectives[0]?.name === '%woops', `Flex: unknown directive name is '%woops' (got '${flexDoc.unknownDirectives[0]?.name}')`);
+
+  const flexDiags = computeFlexDiagnostics(flexDoc, flexSrc);
+  const flexUnknownDiag = flexDiags.find(d => d.message.includes('%woops'));
+  assert(flexUnknownDiag !== undefined, `Flex: Error diagnostic emitted for '%woops'`);
+  assert(flexUnknownDiag?.severity === 1, `Flex: unknown directive has Error severity`);
+}
+
+// ════════════════════════════════════════
+// TEST 5: Diagnostic – Unused rules (Task 2)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Unused Rules ===\n');
+
+{
+  const bisonSrc = [
+    '%token NUMBER PLUS',
+    '%%',
+    'start : expr ;',
+    'expr  : NUMBER ;',
+    'unused_rule : PLUS ;',  // ← never referenced
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(bisonSrc);
+  const diags = computeBisonDiagnostics(doc, bisonSrc);
+
+  const unusedDiags = diags.filter(d => d.message.includes('unused_rule') && d.message.includes('never referenced'));
+  assert(unusedDiags.length >= 1, `Unused rule 'unused_rule' produces a Warning diagnostic`);
+  assert(unusedDiags[0]?.severity === 2, `Unused rule diagnostic has Warning severity`);
+
+  // The start symbol must NOT be flagged as unused
+  const startDiags = diags.filter(d => d.message.includes('start') && d.message.includes('never referenced'));
+  assert(startDiags.length === 0, `Start symbol 'start' is not flagged as unused`);
+
+  // A rule that IS used must NOT be flagged
+  const exprDiags = diags.filter(d => d.message.includes("'expr'") && d.message.includes('never referenced'));
+  assert(exprDiags.length === 0, `Used rule 'expr' is not flagged as unused`);
+}
+
+// ════════════════════════════════════════
+// TEST 6: Diagnostic – Unused tokens (Task 3)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Unused Tokens ===\n');
+
+{
+  const bisonSrc = [
+    '%token NUMBER PLUS UNUSED_TOK',  // UNUSED_TOK never appears in rules
+    '%%',
+    'start : NUMBER PLUS NUMBER ;',
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(bisonSrc);
+  const diags = computeBisonDiagnostics(doc, bisonSrc);
+
+  const unusedTokDiags = diags.filter(d => d.message.includes('UNUSED_TOK') && d.message.includes('never used'));
+  assert(unusedTokDiags.length >= 1, `Unused token 'UNUSED_TOK' produces a Warning diagnostic`);
+  assert(unusedTokDiags[0]?.severity === 2, `Unused token diagnostic has Warning severity`);
+
+  // Tokens that ARE used must NOT be flagged
+  const numberDiags = diags.filter(d => d.message.includes("'NUMBER'") && d.message.includes('never used'));
+  assert(numberDiags.length === 0, `Used token 'NUMBER' is not flagged as unused`);
+
+  const plusDiags = diags.filter(d => d.message.includes("'PLUS'") && d.message.includes('never used'));
+  assert(plusDiags.length === 0, `Used token 'PLUS' is not flagged as unused`);
+}
+
+// ════════════════════════════════════════
+// TEST 7: Diagnostic – Shift/reduce conflicts (Task 4)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Shift/Reduce Conflicts ===\n');
+
+{
+  // Two alternatives of 'stmt' both start with IF → potential conflict
+  // Note: parser requires "name :" on the same line (Bison inline format)
+  const bisonSrc = [
+    '%token IF ELSE NUMBER',
+    '%%',
+    'start : stmt ;',
+    'stmt : IF NUMBER         { }',
+    '     | IF NUMBER ELSE NUMBER { }',
+    '     ;',
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(bisonSrc);
+  const diags = computeBisonDiagnostics(doc, bisonSrc);
+
+  const conflictDiags = diags.filter(d => d.message.includes('shift/reduce') && d.message.includes('IF'));
+  assert(conflictDiags.length >= 1, `Shift/reduce conflict detected for token 'IF' in rule 'stmt'`);
+  assert(conflictDiags[0]?.severity === 2, `Shift/reduce conflict diagnostic has Warning severity`);
+
+  // A rule with distinct first tokens must NOT produce a conflict warning
+  const bisonClean = [
+    '%token IF ELSE NUMBER',
+    '%%',
+    'start : stmt ;',
+    'stmt : IF NUMBER { }',
+    '     | ELSE NUMBER { }',
+    '     ;',
+    '%%',
+  ].join('\n');
+  const docClean = parseBisonDocument(bisonClean);
+  const cleanDiags = computeBisonDiagnostics(docClean, bisonClean);
+  const cleanConflicts = cleanDiags.filter(d => d.message.includes('shift/reduce'));
+  assert(cleanConflicts.length === 0, `No shift/reduce warning for rule with distinct first tokens`);
+}
+
+// ════════════════════════════════════════
+// TEST 8: Diagnostic – Inaccessible Flex rules (Task 5)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Inaccessible Flex Rules ===\n');
+
+{
+  // Catch-all '.' before a specific pattern → specific rule is inaccessible
+  const flexSrc = [
+    '%option noyywrap',
+    '%%',
+    '.         { /* catchall */ }',
+    '[a-z]+    { /* unreachable */ }',   // ← shadowed by '.' above
+    '%%',
+  ].join('\n');
+
+  const { parseFlexDocument: pflex2 } = require('../server/src/parser/flexParser');
+  const flexDoc = pflex2(flexSrc);
+  const diags = computeFlexDiagnostics(flexDoc, flexSrc);
+
+  const inaccessDiags = diags.filter(d => d.message.includes('inaccessible') || d.message.includes('catch-all'));
+  assert(inaccessDiags.length >= 1, `Inaccessible Flex rule detected after catch-all '.'`);
+  assert(inaccessDiags[0]?.severity === 2, `Inaccessible rule diagnostic has Warning severity`);
+
+  // Duplicate pattern detection
+  const flexDup = [
+    '%option noyywrap',
+    '%%',
+    '[a-z]+    { /* first */ }',
+    '[a-z]+    { /* duplicate — inaccessible */ }',
+    '%%',
+  ].join('\n');
+
+  const flexDocDup = pflex2(flexDup);
+  const dupDiags = computeFlexDiagnostics(flexDocDup, flexDup);
+  const dupWarn = dupDiags.filter(d => d.message.includes('inaccessible') && d.message.includes('identical'));
+  assert(dupWarn.length >= 1, `Duplicate Flex pattern detected as inaccessible`);
+
+  // Specific before catch-all → should NOT be flagged
+  const flexOk = [
+    '%option noyywrap',
+    '%%',
+    '[a-z]+    { /* specific first — OK */ }',
+    '.         { /* catchall last — OK */ }',
+    '%%',
+  ].join('\n');
+
+  const flexDocOk = pflex2(flexOk);
+  const okDiags = computeFlexDiagnostics(flexDocOk, flexOk);
+  const okInacc = okDiags.filter(d => d.message.includes('inaccessible') || d.message.includes('catch-all'));
+  assert(okInacc.length === 0, `No inaccessible warning when specific rule precedes catch-all`);
+}
+
+// ════════════════════════════════════════
 // SUMMARY
 // ════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

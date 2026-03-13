@@ -8,6 +8,16 @@ import {
 } from './types';
 
 /**
+ * All directives recognized by Flex / RE-flex.
+ * Anything starting with % that isn't in this set → unknown directive diagnostic.
+ */
+const KNOWN_FLEX_DIRECTIVES = new Set([
+  'option', 'x', 's',
+  'top', 'class',           // RE-flex extensions
+  'pointer', 'array',       // old Flex memory model
+]);
+
+/**
  * Code block types in Flex/RE-flex files:
  * - %{ ... %}    prologue block
  * - %top{ ... %} RE-flex top block (closes with %})
@@ -82,6 +92,7 @@ export function parseFlexDocument(text: string): FlexDocument {
     separators: [],
     startConditionRefs: new Map(),
     abbreviationRefs: new Map(),
+    unknownDirectives: [],
   };
 
   // Build skip map for code blocks
@@ -158,6 +169,17 @@ export function parseFlexDocument(text: string): FlexDocument {
         location: Range.create(i, 0, i, name.length),
       });
       continue;
+    }
+
+    // Unknown directive: any %word that didn't match a known pattern above
+    if (trimmed.startsWith('%') && !trimmed.startsWith('%%') && !trimmed.startsWith('%{') && !trimmed.startsWith('%}')) {
+      const directiveMatch = trimmed.match(/^%([a-zA-Z][a-zA-Z0-9_-]*)/);
+      if (directiveMatch && !KNOWN_FLEX_DIRECTIVES.has(directiveMatch[1])) {
+        doc.unknownDirectives.push({
+          name: '%' + directiveMatch[1],
+          location: Range.create(i, 0, i, directiveMatch[0].length),
+        });
+      }
     }
   }
 
