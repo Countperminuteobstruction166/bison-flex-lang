@@ -9,6 +9,7 @@ import {
   flexOptionDocs,
   flexBuiltinDocs,
 } from './documentation';
+import { getWordAtPosition as getWordUtil } from './utils';
 
 export function getHover(
   doc: DocumentModel,
@@ -20,8 +21,9 @@ export function getHover(
   const line = lines[position.line] || '';
 
   // Get the word under cursor (extended to handle %, $, @, dots, hyphens)
-  const word = getWordAtPosition(line, position.character);
-  if (!word) return null;
+  const wordInfo = getWordUtil(line, position.line, position.character);
+  if (!wordInfo) return null;
+  const word = wordInfo.word;
 
   if (isBisonDocument(doc)) {
     return getBisonHover(doc, word, line, position);
@@ -182,30 +184,3 @@ function makeHover(signature: string, description: string, example?: string): Ho
   return { contents: content };
 }
 
-function getWordAtPosition(line: string, character: number): string | null {
-  // Extended word pattern: allows %, $, @, dots, hyphens in identifiers
-  // Try to match a %directive first
-  let start = character;
-  let end = character;
-
-  // Expand left
-  while (start > 0 && isWordChar(line[start - 1])) {
-    start--;
-  }
-  // Check for leading %, $, @
-  if (start > 0 && (line[start - 1] === '%' || line[start - 1] === '$' || line[start - 1] === '@')) {
-    start--;
-  }
-
-  // Expand right
-  while (end < line.length && isWordChar(line[end])) {
-    end++;
-  }
-
-  if (start === end) return null;
-  return line.substring(start, end);
-}
-
-function isWordChar(ch: string): boolean {
-  return /[a-zA-Z0-9_.\-]/.test(ch);
-}
