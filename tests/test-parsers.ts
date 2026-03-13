@@ -7,10 +7,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { parseBisonDocument } from './server/src/parser/bisonParser';
-import { parseFlexDocument } from './server/src/parser/flexParser';
-import { computeBisonDiagnostics, computeFlexDiagnostics } from './server/src/providers/diagnostics';
-import { bisonDirectiveDocs, bisonDefineDocs, flexDirectiveDocs, flexOptionDocs, flexBuiltinDocs } from './server/src/providers/documentation';
+import { parseBisonDocument } from '../server/src/parser/bisonParser';
+import { parseFlexDocument } from '../server/src/parser/flexParser';
+import { computeBisonDiagnostics, computeFlexDiagnostics } from '../server/src/providers/diagnostics';
+import { bisonDirectiveDocs, bisonDefineDocs, flexDirectiveDocs, flexOptionDocs, flexBuiltinDocs } from '../server/src/providers/documentation';
 
 let passed = 0;
 let failed = 0;

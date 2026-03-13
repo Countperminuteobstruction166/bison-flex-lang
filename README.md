@@ -1,5 +1,10 @@
 # Bison/Flex Language Support
 
+[![VS Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/theodevelop.bison-flex-lang?label=Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=theodevelop.bison-flex-lang)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/theodevelop.bison-flex-lang)](https://marketplace.visualstudio.com/items?itemName=theodevelop.bison-flex-lang)
+[![CI](https://github.com/theodevelop/Bison-Flex-Language-Support/actions/workflows/ci.yml/badge.svg)](https://github.com/theodevelop/Bison-Flex-Language-Support/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Full-featured language support for **GNU Bison** (`.y`, `.yy`) and **Flex/RE-flex** (`.l`, `.ll`) in Visual Studio Code.
 
 Build parsers and lexers with confidence — get syntax highlighting with embedded C/C++, real-time error detection, intelligent autocompletion, and inline documentation for every directive.
