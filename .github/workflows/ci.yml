@@ -26,4 +26,4 @@ jobs:
         run: npm run compile
 
       - name: Run parser tests
-        run: npx ts-node --project server/tsconfig.json test/test-parsers.ts
+        run: npx ts-node --project server/tsconfig.json tests/test-parsers.ts
