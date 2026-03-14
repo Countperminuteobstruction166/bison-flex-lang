@@ -229,14 +229,14 @@ export function parseBisonDocument(text: string): BisonDocument {
       // Parse the rest of the line after ':' as the first alternative
       const rest = trimmed.substring(ruleDefMatch[0].length);
       const altRange = Range.create(i, 0, i, line.length);
-      const alt: RuleAlternative = { range: altRange, firstSymbol: getFirstSymbol(rest) };
+      const alt: RuleAlternative = { range: altRange, firstSymbol: getFirstSymbol(rest), symbols: extractSymbols(rest) };
       doc.rules.get(currentRule)!.alternatives.push(alt);
       extractRuleReferences(rest, i, line, doc);
     } else if (trimmed.startsWith('|') && currentRule) {
       // New alternative: track first symbol
       const altBody = trimmed.slice(1); // strip leading '|'
       const altRange = Range.create(i, 0, i, line.length);
-      const alt: RuleAlternative = { range: altRange, firstSymbol: getFirstSymbol(altBody) };
+      const alt: RuleAlternative = { range: altRange, firstSymbol: getFirstSymbol(altBody), symbols: extractSymbols(altBody) };
       doc.rules.get(currentRule)?.alternatives.push(alt);
       extractRuleReferences(trimmed, i, line, doc);
     } else if (currentRule) {
@@ -265,6 +265,26 @@ export function parseBisonDocument(text: string): BisonDocument {
   }
 
   return doc;
+}
+
+/**
+ * Extract all grammar symbols (identifiers) from a production RHS in order.
+ */
+function extractSymbols(text: string): string[] {
+  const cleaned = text
+    .replace(/"(?:[^"\\]|\\.)*"/g, ' ')    // remove strings
+    .replace(/\{[^}]*\}/g, ' ')            // remove inline actions
+    .replace(/%prec\s+\S+/g, ' ')          // remove %prec TOKEN
+    .replace(/%empty/g, ' ')               // remove %empty
+    .replace(/\/\/.*$/g, ' ')              // remove line comments
+    .trim();
+  const symbols: string[] = [];
+  const regex = /\b([a-zA-Z_][a-zA-Z0-9_.]*)\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(cleaned)) !== null) {
+    symbols.push(m[1]);
+  }
+  return symbols;
 }
 
 /**

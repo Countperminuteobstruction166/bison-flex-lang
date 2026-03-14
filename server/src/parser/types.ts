@@ -39,6 +39,7 @@ export interface CodeBlock {
 export interface RuleAlternative {
   range: Range;
   firstSymbol?: string;  // first terminal/non-terminal of this production (for conflict detection)
+  symbols: string[];     // ordered list of all grammar symbols in this production
 }
 
 export interface RuleDefinition {

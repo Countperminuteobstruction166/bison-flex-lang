@@ -2,7 +2,9 @@
 
 [![VS Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/theodevelop.bison-flex-lang?label=Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=theodevelop.bison-flex-lang)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/theodevelop.bison-flex-lang)](https://marketplace.visualstudio.com/items?itemName=theodevelop.bison-flex-lang)
-[![CI](https://github.com/theodevelop/Bison-Flex-Language-Support/actions/workflows/ci.yml/badge.svg)](https://github.com/theodevelop/Bison-Flex-Language-Support/actions/workflows/ci.yml)
+[![Rating](https://img.shields.io/visual-studio-marketplace/r/theodevelop.bison-flex-lang)](https://marketplace.visualstudio.com/items?itemName=theodevelop.bison-flex-lang)
+[![Open VSX](https://img.shields.io/open-vsx/v/theodevelop/bison-flex-lang?label=Open%20VSX&logo=vscodium)](https://open.vsx.org/extension/theodevelop/bison-flex-lang)
+[![CI](https://github.com/theodevelop/bison-flex-lang/actions/workflows/ci.yml/badge.svg)](https://github.com/theodevelop/bison-flex-lang/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Full-featured language support for **GNU Bison** (`.y`, `.yy`) and **Flex/RE-flex** (`.l`, `.ll`) in Visual Studio Code.
@@ -32,6 +34,10 @@ Real-time error detection as you type:
 | Missing `%%` section separator | Missing `%%` section separator |
 | Unclosed `%{ %}` code blocks | Unclosed `%{ %}` code blocks |
 | Missing `%type` with `variant` semantic values | Unused start conditions and abbreviations |
+| Unused grammar rules (unreachable from start symbol) | Inaccessible rules (catch-all before specific pattern, or duplicate) |
+| Unused tokens (declared but never referenced) | Unknown/invalid directive |
+| Shift/reduce conflict heuristic | |
+| Unknown/invalid directive | |
 
 ### Autocompletion
 
@@ -134,6 +140,65 @@ Then press `F5` in VS Code to launch the Extension Development Host.
 |---------|------|---------|-------------|
 | `bisonFlex.enableDiagnostics` | `boolean` | `true` | Enable/disable real-time error detection |
 | `bisonFlex.maxDiagnostics` | `number` | `100` | Maximum number of diagnostics per file |
+| `bisonFlex.bisonPath` | `string` | `"bison"` | Path to the Bison executable (must be in PATH or absolute) |
+| `bisonFlex.flexPath` | `string` | `"flex"` | Path to the Flex executable (must be in PATH or absolute) |
+
+---
+
+## Build Integration (tasks.json)
+
+Drop this `.vscode/tasks.json` into your Bison/Flex project to get `Ctrl+Shift+B` build support with problem matchers:
+
+```json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build (Bison + Flex + Make)",
+      "type": "shell",
+      "command": "make",
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": [
+        {
+          "owner": "bison",
+          "fileLocation": ["relative", "${workspaceFolder}"],
+          "pattern": {
+            "regexp": "^(.+?):(\\d+)(?:\\.(\\d+))?:\\s+(warning|error):\\s+(.+)$",
+            "file": 1, "line": 2, "column": 3, "severity": 4, "message": 5
+          }
+        },
+        {
+          "owner": "flex",
+          "fileLocation": ["relative", "${workspaceFolder}"],
+          "pattern": {
+            "regexp": "^(.+?):(\\d+):\\s+(warning|error):\\s+(.+)$",
+            "file": 1, "line": 2, "severity": 3, "message": 4
+          }
+        }
+      ]
+    },
+    {
+      "label": "Bison: Compile current file",
+      "type": "shell",
+      "command": "bison",
+      "args": ["-d", "-v", "${file}"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Flex: Compile current file",
+      "type": "shell",
+      "command": "flex",
+      "args": ["-o", "${fileBasenameNoExtension}.c", "${file}"],
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}
+```
+
+> **Tip**: `bison -d` generates the `.tab.h` header; `-v` produces the `.output` report with the parse table.
 
 ---
 

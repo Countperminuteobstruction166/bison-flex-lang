@@ -9,7 +9,15 @@
     "type": "git",
     "url": "https://github.com/theodevelop/bison-flex-lang"
   },
+  "homepage": "https://github.com/theodevelop/bison-flex-lang#readme",
+  "bugs": {
+    "url": "https://github.com/theodevelop/bison-flex-lang/issues"
+  },
   "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.75.0"
   },
@@ -104,6 +112,48 @@
         "path": "./bison-flex-icon-theme.json"
       }
     ],
+    "commands": [
+      {
+        "command": "bisonFlex.compileBison",
+        "title": "Bison: Compile",
+        "icon": "$(play)"
+      },
+      {
+        "command": "bisonFlex.compileFlex",
+        "title": "Flex: Compile",
+        "icon": "$(play)"
+      },
+      {
+        "command": "bisonFlex.showParseTable",
+        "title": "Bison: Show Parse Table",
+        "icon": "$(table)"
+      },
+      {
+        "command": "bisonFlex.showGrammarGraph",
+        "title": "Bison: Show Grammar Graph",
+        "icon": "$(type-hierarchy)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "bisonFlex.compileBison",
+          "when": "editorLangId == bison"
+        },
+        {
+          "command": "bisonFlex.compileFlex",
+          "when": "editorLangId == flex"
+        },
+        {
+          "command": "bisonFlex.showParseTable",
+          "when": "editorLangId == bison"
+        },
+        {
+          "command": "bisonFlex.showGrammarGraph",
+          "when": "editorLangId == bison"
+        }
+      ]
+    },
     "configuration": {
       "title": "Bison & Flex",
       "properties": {
@@ -116,6 +166,16 @@
           "type": "number",
           "default": 100,
           "description": "Maximum number of diagnostics to report per file."
+        },
+        "bisonFlex.bisonPath": {
+          "type": "string",
+          "default": "bison",
+          "description": "Path to the Bison executable. Defaults to 'bison' (must be in PATH)."
+        },
+        "bisonFlex.flexPath": {
+          "type": "string",
+          "default": "flex",
+          "description": "Path to the Flex executable. Defaults to 'flex' (must be in PATH)."
         }
       }
     }
@@ -130,7 +190,8 @@
   "dependencies": {
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver": "^9.0.1",
-    "vscode-languageserver-textdocument": "^1.0.11"
+    "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",

@@ -10,6 +10,7 @@ import {
   flexBuiltinDocs,
 } from './documentation';
 import { getWordAtPosition as getWordUtil } from './utils';
+import { computeFirstSets, computeFollowSets } from './firstFollow';
 
 export function getHover(
   doc: DocumentModel,
@@ -90,13 +91,26 @@ function getBisonHover(doc: BisonDocument, word: string, line: string, position:
     };
   }
 
-  // 7. Rule names
+  // 7. Rule names — with First/Follow sets
   const rule = doc.rules.get(word);
   if (rule) {
     const type = doc.nonTerminals.get(word);
     const parts = [`**Rule:** \`${word}\``];
     if (type?.type) parts.push(`**Type:** \`<${type.type}>\``);
     parts.push(`Defined at line ${rule.location.start.line + 1}`);
+
+    // Compute and display First/Follow sets
+    const firstSets = computeFirstSets(doc);
+    const followSets = computeFollowSets(doc, firstSets);
+    const firstSet = firstSets.get(word);
+    const followSet = followSets.get(word);
+    if (firstSet && firstSet.size > 0) {
+      parts.push(`**First:** { ${[...firstSet].sort().join(', ')} }`);
+    }
+    if (followSet && followSet.size > 0) {
+      parts.push(`**Follow:** { ${[...followSet].sort().join(', ')} }`);
+    }
+
     return {
       contents: { kind: MarkupKind.Markdown, value: parts.join('\n\n') },
     };
