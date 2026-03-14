@@ -202,5 +202,67 @@
       "                    start(INITIAL);",
       "                  }"
     ]
+  },
+
+  "Number Handler": {
+    "prefix": "number-handler",
+    "description": "Complete numeric literal handler: integers, floats, and scientific notation",
+    "body": [
+      "/* --- Numeric literals --- */",
+      "[0-9]+  {",
+      "          ${1:yylval.ival} = atoi(yytext);",
+      "          return ${2:INTEGER};",
+      "        }",
+      "",
+      "[0-9]*\\.[0-9]+([eE][+-]?[0-9]+)?  {",
+      "          ${3:yylval.dval} = atof(yytext);",
+      "          return ${4:FLOAT};",
+      "        }",
+      "",
+      "[0-9]+[eE][+-]?[0-9]+  {",
+      "          ${3} = atof(yytext);",
+      "          return ${4};",
+      "        }"
+    ]
+  },
+
+  "Identifier Handler": {
+    "prefix": "identifier-handler",
+    "description": "Identifier rule with optional keyword table lookup",
+    "body": [
+      "/* --- Identifiers --- */",
+      "[a-zA-Z_][a-zA-Z0-9_]*  {",
+      "          ${1:yylval.sval} = strdup(yytext);",
+      "          int kw = ${2:keyword_lookup}(yytext);",
+      "          return kw ? kw : ${3:IDENTIFIER};",
+      "        }"
+    ]
+  },
+
+  "Multiline Comment Handler": {
+    "prefix": "multiline-comment",
+    "description": "Nested /* */ comment handler with depth counter and BEGIN() (standard Flex)",
+    "body": [
+      "/* --- Nested C-style comments (standard Flex) --- */",
+      "%x ${1:SC_COMMENT}",
+      "",
+      "/* Declare in your C prologue: int ${2:comment_depth}; */",
+      "",
+      "\"/*\"  {",
+      "          ${2} = 1;",
+      "          BEGIN(${1});",
+      "        }",
+      "<${1}>\"/*\"  { ${2}++; }",
+      "<${1}>\"*/\"  {",
+      "          if (--${2} == 0)",
+      "            BEGIN(INITIAL);",
+      "        }",
+      "<${1}>\\n    { /* count lines: yylineno++; */ }",
+      "<${1}><<EOF>>  {",
+      "          yyerror(\"unterminated comment\");",
+      "          BEGIN(INITIAL);",
+      "        }",
+      "<${1}>.   { /* discard comment content */ }"
+    ]
   }
 }

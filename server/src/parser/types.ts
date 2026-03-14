@@ -1,5 +1,10 @@
 import { Range } from 'vscode-languageserver';
 
+export interface UnknownDirective {
+  name: string;       // e.g. "%prout"
+  location: Range;
+}
+
 export interface TokenDeclaration {
   name: string;
   type?: string;       // e.g., "int", "std::string"
@@ -31,10 +36,16 @@ export interface CodeBlock {
   range: Range;
 }
 
+export interface RuleAlternative {
+  range: Range;
+  firstSymbol?: string;  // first terminal/non-terminal of this production (for conflict detection)
+  symbols: string[];     // ordered list of all grammar symbols in this production
+}
+
 export interface RuleDefinition {
   name: string;
   location: Range;
-  alternatives: Range[];
+  alternatives: RuleAlternative[];
 }
 
 export interface BisonDocument {
@@ -47,6 +58,7 @@ export interface BisonDocument {
   separators: number[];  // line numbers of %%
   startSymbol?: string;
   ruleReferences: Map<string, Range[]>;  // symbol name -> locations used in rules RHS
+  unknownDirectives: UnknownDirective[];
 }
 
 export interface FlexOption {
@@ -82,6 +94,7 @@ export interface FlexDocument {
   separators: number[];
   startConditionRefs: Map<string, Range[]>;  // SC name -> locations used in rules
   abbreviationRefs: Map<string, Range[]>;    // abbrev name -> locations used in rules
+  unknownDirectives: UnknownDirective[];
 }
 
 export type DocumentModel = BisonDocument | FlexDocument;

@@ -13,8 +13,25 @@ All notable changes to the **Bison/Flex Language Support** extension will be doc
   - Start condition highlighting (`<SC_NAME>`)
   - Abbreviation reference highlighting (`{name}`)
 - **Real-time diagnostics**
-  - Bison: undeclared tokens, orphan `%type` declarations, missing `%%`, unclosed blocks
-  - Flex: undefined start conditions, undefined abbreviations, missing `%%`, unclosed blocks
+  - Bison:
+    - Missing `%%` section separator (Error)
+    - Unknown/invalid directive — e.g. `%prout` (Error)
+    - Token used in grammar rules but not declared with `%token` (Warning)
+    - `%type` declared for a non-terminal that has no rule (Warning)
+    - Rule missing `%type` declaration when `api.value.type=variant` is active (Info)
+    - Unclosed `%{ %}` code block (Error)
+    - Unused grammar rules — not reachable from the start symbol (Warning)
+    - Unused tokens — declared with `%token` but never referenced in rules (Warning)
+    - Shift/reduce conflict heuristic — same terminal appears in two or more alternatives of a rule (Warning)
+  - Flex:
+    - Missing `%%` section separator (Error)
+    - Unknown/invalid directive — e.g. `%woops` (Error)
+    - Undefined start condition used in a rule (`<SC>` not declared with `%x`/`%s`) (Error)
+    - Undefined abbreviation referenced in a pattern (`{name}` not in definitions section) (Warning)
+    - Start condition declared but never used in any rule (Info)
+    - Abbreviation declared but never referenced in any pattern (Info)
+    - Unclosed `%{ %}` code block (Error)
+    - Inaccessible rule — catch-all pattern before a specific pattern, or duplicate pattern (Warning)
 - **Autocompletion**
   - 30+ Bison directives with documentation
   - 20+ Flex `%option` values
@@ -32,3 +49,6 @@ All notable changes to the **Bison/Flex Language Support** extension will be doc
   - 12 Flex snippets (scanner skeleton, RE-flex skeleton, comment/string handlers)
 - **Language configuration**
   - Bracket matching, auto-closing pairs, comment toggling, folding
+- **File icon theme** (`bison-flex-icons`)
+  - Distinct orange "B" icon for Bison files (`.y`, `.yy`, `.ypp`, `.bison`)
+  - Distinct blue "F" icon for Flex files (`.l`, `.ll`, `.lex`, `.flex`)
