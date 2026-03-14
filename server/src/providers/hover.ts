@@ -9,6 +9,8 @@ import {
   flexOptionDocs,
   flexBuiltinDocs,
 } from './documentation';
+import { getWordAtPosition as getWordUtil } from './utils';
+import { computeFirstSets, computeFollowSets } from './firstFollow';
 
 export function getHover(
   doc: DocumentModel,
@@ -20,8 +22,9 @@ export function getHover(
   const line = lines[position.line] || '';
 
   // Get the word under cursor (extended to handle %, $, @, dots, hyphens)
-  const word = getWordAtPosition(line, position.character);
-  if (!word) return null;
+  const wordInfo = getWordUtil(line, position.line, position.character);
+  if (!wordInfo) return null;
+  const word = wordInfo.word;
 
   if (isBisonDocument(doc)) {
     return getBisonHover(doc, word, line, position);
@@ -88,13 +91,26 @@ function getBisonHover(doc: BisonDocument, word: string, line: string, position:
     };
   }
 
-  // 7. Rule names
+  // 7. Rule names — with First/Follow sets
   const rule = doc.rules.get(word);
   if (rule) {
     const type = doc.nonTerminals.get(word);
     const parts = [`**Rule:** \`${word}\``];
     if (type?.type) parts.push(`**Type:** \`<${type.type}>\``);
     parts.push(`Defined at line ${rule.location.start.line + 1}`);
+
+    // Compute and display First/Follow sets
+    const firstSets = computeFirstSets(doc);
+    const followSets = computeFollowSets(doc, firstSets);
+    const firstSet = firstSets.get(word);
+    const followSet = followSets.get(word);
+    if (firstSet && firstSet.size > 0) {
+      parts.push(`**First:** { ${[...firstSet].sort().join(', ')} }`);
+    }
+    if (followSet && followSet.size > 0) {
+      parts.push(`**Follow:** { ${[...followSet].sort().join(', ')} }`);
+    }
+
     return {
       contents: { kind: MarkupKind.Markdown, value: parts.join('\n\n') },
     };
@@ -182,30 +198,3 @@ function makeHover(signature: string, description: string, example?: string): Ho
   return { contents: content };
 }
 
-function getWordAtPosition(line: string, character: number): string | null {
-  // Extended word pattern: allows %, $, @, dots, hyphens in identifiers
-  // Try to match a %directive first
-  let start = character;
-  let end = character;
-
-  // Expand left
-  while (start > 0 && isWordChar(line[start - 1])) {
-    start--;
-  }
-  // Check for leading %, $, @
-  if (start > 0 && (line[start - 1] === '%' || line[start - 1] === '$' || line[start - 1] === '@')) {
-    start--;
-  }
-
-  // Expand right
-  while (end < line.length && isWordChar(line[end])) {
-    end++;
-  }
-
-  if (start === end) return null;
-  return line.substring(start, end);
-}
-
-function isWordChar(ch: string): boolean {
-  return /[a-zA-Z0-9_.\-]/.test(ch);
-}

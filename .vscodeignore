@@ -9,3 +9,12 @@ node_modules/
 tests/
 images/icon.svg
 **/*.map
+.claude/
+.github/
+.gitignore
+TODO.md
+examples/
+tsconfig.base.json
+package-lock.json
+*.vsix
+.gitattributes

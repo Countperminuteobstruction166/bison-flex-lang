@@ -1,0 +1,21 @@
+{
+  "iconDefinitions": {
+    "_bison": {
+      "iconPath": "./images/bison-icon.svg"
+    },
+    "_flex": {
+      "iconPath": "./images/flex-icon.svg"
+    }
+  },
+  "fileExtensions": {
+    "y":     "_bison",
+    "yy":    "_bison",
+    "ypp":   "_bison",
+    "bison": "_bison",
+    "l":     "_flex",
+    "ll":    "_flex",
+    "lex":   "_flex",
+    "flex":  "_flex"
+  },
+  "fileNames": {}
+}
