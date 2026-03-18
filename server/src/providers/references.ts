@@ -29,13 +29,15 @@ export function getReferences(
 function getBisonReferences(doc: BisonDocument, uri: string, word: string, includeDeclaration: boolean): Location[] {
   const locations: Location[] = [];
 
-  // Check the symbol exists in at least one map
+  // Check the symbol exists in at least one map or special location
   const hasToken = doc.tokens.has(word);
   const hasNT = doc.nonTerminals.has(word);
   const hasRule = doc.rules.has(word);
   const hasRefs = doc.ruleReferences.has(word);
+  const isStartSymbol = doc.startSymbol === word;
+  const hasPrecRef = doc.precedence.some(p => p.symbols.includes(word));
 
-  if (!hasToken && !hasNT && !hasRule && !hasRefs) return [];
+  if (!hasToken && !hasNT && !hasRule && !hasRefs && !isStartSymbol && !hasPrecRef) return [];
 
   // Declaration locations
   if (includeDeclaration) {
@@ -49,7 +51,21 @@ function getBisonReferences(doc: BisonDocument, uri: string, word: string, inclu
     if (rule) locations.push(Location.create(uri, rule.location));
   }
 
-  // Usage references in rule bodies
+  // %start directive reference
+  if (isStartSymbol && doc.startSymbolLocation) {
+    locations.push(Location.create(uri, doc.startSymbolLocation));
+  }
+
+  // Precedence declaration references (%left, %right, %nonassoc, %precedence)
+  for (const prec of doc.precedence) {
+    for (let j = 0; j < prec.symbols.length; j++) {
+      if (prec.symbols[j] === word && prec.symbolRanges[j]) {
+        locations.push(Location.create(uri, prec.symbolRanges[j]));
+      }
+    }
+  }
+
+  // Usage references in rule bodies (includes %prec token references)
   const refs = doc.ruleReferences.get(word);
   if (refs) {
     for (const range of refs) {

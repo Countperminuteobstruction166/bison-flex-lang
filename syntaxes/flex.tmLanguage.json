@@ -59,8 +59,8 @@
     },
 
     "rule-with-start-condition": {
-      "comment": "Rule prefixed with <SC_NAME> or <SC1,SC2>",
-      "begin": "^(<)([A-Z_][A-Z0-9_]*(?:,[A-Z_][A-Z0-9_]*)*)(>)",
+      "comment": "Rule prefixed with <SC>, <SC1,SC2>, or <*> (all conditions)",
+      "begin": "^(<)(\\*|[A-Z_][A-Z0-9_]*(?:,(?:\\*|[A-Z_][A-Z0-9_]*))*)(>)",
       "end": "$",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.tag.begin.flex" },
@@ -96,13 +96,17 @@
     },
 
     "action-block": {
-      "comment": "Action block { C++ code }",
+      "comment": "Action block { C++ code } — strings/comments fenced explicitly to prevent brace drift",
       "begin": "\\{",
       "end": "\\}",
       "beginCaptures": { "0": { "name": "punctuation.section.block.begin.flex" } },
       "endCaptures": { "0": { "name": "punctuation.section.block.end.flex" } },
       "contentName": "meta.embedded.block.cpp",
       "patterns": [
+        { "include": "#cpp-block-comment" },
+        { "include": "#cpp-line-comment" },
+        { "include": "#cpp-string" },
+        { "include": "#cpp-char" },
         { "include": "#action-block" },
         { "include": "#flex-builtins" },
         { "include": "#flex-macros" },
@@ -154,13 +158,18 @@
     },
 
     "pattern-char-class": {
-      "comment": "Character class [abc] in regex patterns",
+      "comment": "Character class [abc] — handles POSIX classes [:alpha:] and escape sequences",
       "name": "constant.other.character-class.flex",
       "begin": "\\[",
       "end": "\\]",
       "beginCaptures": { "0": { "name": "punctuation.definition.character-class.begin.flex" } },
       "endCaptures": { "0": { "name": "punctuation.definition.character-class.end.flex" } },
       "patterns": [
+        {
+          "comment": "POSIX named character class [:alpha:] etc — inner ] must not close the outer class",
+          "name": "constant.language.posix-class.flex",
+          "match": "\\[:[a-z]+:\\]"
+        },
         {
           "name": "constant.character.escape.flex",
           "match": "\\\\."
@@ -322,6 +331,39 @@
           ]
         }
       }
+    },
+
+    "cpp-block-comment": {
+      "comment": "C++ block comment — fences } inside /* ... */ from ending action blocks",
+      "name": "comment.block.cpp.flex",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+
+    "cpp-line-comment": {
+      "comment": "C++ line comment — fences } on // ... lines from ending action blocks",
+      "name": "comment.line.double-slash.cpp.flex",
+      "match": "//.*$"
+    },
+
+    "cpp-string": {
+      "comment": "C++ double-quoted string — fences } inside \"...\" from ending action blocks",
+      "name": "string.quoted.double.cpp.flex",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        { "name": "constant.character.escape.cpp.flex", "match": "\\\\." }
+      ]
+    },
+
+    "cpp-char": {
+      "comment": "C++ character literal — fences } inside '...' from ending action blocks",
+      "name": "string.quoted.single.cpp.flex",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        { "name": "constant.character.escape.cpp.flex", "match": "\\\\." }
+      ]
     }
   }
 }

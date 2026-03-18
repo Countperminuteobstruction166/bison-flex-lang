@@ -679,6 +679,834 @@ console.log('\n\n=== TEST: First/Follow Sets ===\n');
 }
 
 // ════════════════════════════════════════
+// TEST 13: $n out of bounds (NEW 1)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: $n Out of Bounds ===\n');
+
+{
+  // $5 in a rule with only 2 symbols → Error
+  const bisonSrc = [
+    '%token PLUS NUMBER',
+    '%%',
+    'start : expr ;',
+    'expr  : NUMBER PLUS { $$ = $5; }',  // 2 symbols, $5 out of bounds
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(bisonSrc);
+  const diags = computeBisonDiagnostics(doc, bisonSrc);
+
+  const oobDiags = diags.filter(d => d.message.includes('$5') && d.message.includes('out of bounds'));
+  assert(oobDiags.length >= 1, `$5 in a 2-symbol rule produces an Error diagnostic`);
+  assert(oobDiags[0]?.severity === 1, `$5 out-of-bounds has Error severity`);
+
+  // In-bounds reference must NOT be flagged
+  const bisonOk = [
+    '%token PLUS NUMBER',
+    '%%',
+    'start : expr ;',
+    'expr  : NUMBER PLUS NUMBER { $$ = $1 + $3; }',  // 3 symbols, $1 and $3 valid
+    '%%',
+  ].join('\n');
+
+  const docOk = parseBisonDocument(bisonOk);
+  const okDiags = computeBisonDiagnostics(docOk, bisonOk);
+  const oobOk = okDiags.filter(d => d.message.includes('out of bounds'));
+  assert(oobOk.length === 0, `In-bounds $1 and $3 are not flagged`);
+
+  // $$ (result) must NOT be flagged — it is not a $n ref
+  const bisonDollarDollar = [
+    '%token NUMBER',
+    '%%',
+    'start : NUMBER { $$ = $1; }',
+    '%%',
+  ].join('\n');
+  const docDD = parseBisonDocument(bisonDollarDollar);
+  const ddDiags = computeBisonDiagnostics(docDD, bisonDollarDollar);
+  const ddOob = ddDiags.filter(d => d.message.includes('out of bounds'));
+  assert(ddOob.length === 0, `$$ is not flagged as out-of-bounds`);
+}
+
+// ════════════════════════════════════════
+// TEST 14: Undeclared binary operators conflict (NEW 2)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Undeclared Binary Operators ===\n');
+
+{
+  // Two left-recursive alternatives with undeclared operators
+  const bisonSrc = [
+    '%token NUMBER PLUS MINUS',  // no %left/%right for PLUS/MINUS
+    '%%',
+    'start : expr ;',
+    'expr : expr PLUS expr',
+    '     | expr MINUS expr',
+    '     | NUMBER',
+    '     ;',
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(bisonSrc);
+  const diags = computeBisonDiagnostics(doc, bisonSrc);
+
+  const conflictDiags = diags.filter(d => d.message.includes('undeclared operators') && d.message.includes('expr'));
+  assert(conflictDiags.length >= 1, `Undeclared binary operators produce a Warning`);
+  assert(conflictDiags[0]?.severity === 2, `Undeclared binary operators warning has Warning severity`);
+
+  // With %left declarations the check must NOT fire
+  const bisonDeclared = [
+    '%token NUMBER PLUS MINUS',
+    '%left PLUS MINUS',
+    '%%',
+    'start : expr ;',
+    'expr : expr PLUS expr',
+    '     | expr MINUS expr',
+    '     | NUMBER',
+    '     ;',
+    '%%',
+  ].join('\n');
+  const docDecl = parseBisonDocument(bisonDeclared);
+  const declDiags = computeBisonDiagnostics(docDecl, bisonDeclared);
+  const declConflict = declDiags.filter(d => d.message.includes('undeclared operators'));
+  assert(declConflict.length === 0, `Declared operators not flagged as undeclared`);
+}
+
+// ════════════════════════════════════════
+// TEST 15: Missing %start directive (NEW 3)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Missing %start Directive ===\n');
+
+{
+  // Grammar with > 2 rules and no %start
+  const bisonSrc = [
+    '%token NUMBER PLUS',
+    '%%',
+    'program : stmtlist ;',
+    'stmtlist : stmtlist stmt',
+    '         | stmt',
+    '         ;',
+    'stmt : NUMBER PLUS NUMBER ;',
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(bisonSrc);
+  assert(!doc.startSymbol, 'No %start symbol parsed');
+  const diags = computeBisonDiagnostics(doc, bisonSrc);
+
+  const startDiags = diags.filter(d => d.message.includes('No %start') || d.message.includes('%start'));
+  assert(startDiags.length >= 1, `Missing %start produces an Information diagnostic`);
+  assert(startDiags[0]?.severity === 3, `Missing %start has Information severity`);
+  assert(startDiags[0]?.message.includes('program'), `Diagnostic names the implicit start symbol`);
+
+  // With explicit %start the check must NOT fire
+  const bisonWithStart = [
+    '%token NUMBER PLUS',
+    '%start program',
+    '%%',
+    'program : stmtlist ;',
+    'stmtlist : stmtlist stmt | stmt ;',
+    'stmt : NUMBER PLUS NUMBER ;',
+    '%%',
+  ].join('\n');
+  const docWS = parseBisonDocument(bisonWithStart);
+  const wsDiags = computeBisonDiagnostics(docWS, bisonWithStart);
+  const wsStart = wsDiags.filter(d => d.message.includes('No %start'));
+  assert(wsStart.length === 0, `Explicit %start suppresses the Information diagnostic`);
+}
+
+// ════════════════════════════════════════
+// TEST 16: Empty production without %empty (NEW 4)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Missing %empty ===\n');
+
+{
+  // An empty production without %empty
+  const bisonSrc = [
+    '%token NUMBER',
+    '%%',
+    'start : list ;',
+    'list : NUMBER list',
+    '     |',             // empty without %empty
+    '     ;',
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(bisonSrc);
+  const diags = computeBisonDiagnostics(doc, bisonSrc);
+
+  const emptyDiags = diags.filter(d => d.message.includes('%empty') && d.message.includes("'list'"));
+  assert(emptyDiags.length >= 1, `Empty production without %empty produces a Warning`);
+  assert(emptyDiags[0]?.severity === 2, `Missing %empty has Warning severity`);
+
+  // %empty explicitly written must NOT trigger the warning
+  const bisonWithEmpty = [
+    '%token NUMBER',
+    '%%',
+    'start : list ;',
+    'list : NUMBER list',
+    '     | %empty',
+    '     ;',
+    '%%',
+  ].join('\n');
+  const docWE = parseBisonDocument(bisonWithEmpty);
+  const weDiags = computeBisonDiagnostics(docWE, bisonWithEmpty);
+  const weEmpty = weDiags.filter(d => d.message.includes('%empty') && d.message.includes("'list'"));
+  assert(weEmpty.length === 0, `Explicit %empty suppresses the Warning`);
+}
+
+// ════════════════════════════════════════
+// TEST 17: Flex – Invalid regex pattern (NEW 5)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Flex Invalid Regex ===\n');
+
+{
+  // Unclosed bracket [ is an invalid regex
+  const flexSrc = [
+    '%option noyywrap',
+    '%%',
+    '[unclosed   { /* bad pattern */ }',
+    '[a-z]+      { /* valid */ }',
+    '%%',
+  ].join('\n');
+
+  const { parseFlexDocument: pflex3 } = require('../server/src/parser/flexParser');
+  const flexDoc = pflex3(flexSrc);
+  const diags = computeFlexDiagnostics(flexDoc, flexSrc);
+
+  const invalidDiags = diags.filter(d => d.message.includes('Invalid regex') || d.message.includes('invalid'));
+  assert(invalidDiags.length >= 1, `Invalid Flex regex produces an Error diagnostic`);
+  assert(invalidDiags[0]?.severity === 1, `Invalid Flex regex has Error severity`);
+
+  // Valid patterns must NOT be flagged
+  const flexOk = [
+    '%option noyywrap',
+    '%%',
+    '[a-z]+    { }',
+    '[0-9]+    { }',
+    '"hello"   { }',
+    '%%',
+  ].join('\n');
+  const flexDocOk = pflex3(flexOk);
+  const okDiags = computeFlexDiagnostics(flexDocOk, flexOk);
+  const okInvalid = okDiags.filter(d => d.message.includes('Invalid regex'));
+  assert(okInvalid.length === 0, `Valid Flex patterns are not flagged`);
+}
+
+// ════════════════════════════════════════
+// TEST 18: Flex – Keyword shadowed by identifier pattern (NEW 6)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Flex Keyword Overlap ===\n');
+
+{
+  // Identifier pattern before keyword → keyword shadowed
+  const flexSrc = [
+    '%option noyywrap',
+    '%%',
+    '[a-zA-Z_][a-zA-Z0-9_]*  { /* identifier */ }',
+    'if                       { /* shadowed keyword */ }',
+    '%%',
+  ].join('\n');
+
+  const { parseFlexDocument: pflex4 } = require('../server/src/parser/flexParser');
+  const flexDoc = pflex4(flexSrc);
+  const diags = computeFlexDiagnostics(flexDoc, flexSrc);
+
+  const overlapDiags = diags.filter(d => d.message.includes('shadowed') || d.message.includes('keyword'));
+  assert(overlapDiags.length >= 1, `Keyword after identifier pattern produces a Warning`);
+  assert(overlapDiags[0]?.severity === 2, `Keyword overlap has Warning severity`);
+
+  // Keyword before identifier pattern → correct order, no warning
+  const flexOk = [
+    '%option noyywrap',
+    '%%',
+    'if                       { /* keyword first — correct */ }',
+    '[a-zA-Z_][a-zA-Z0-9_]*  { /* identifier */ }',
+    '%%',
+  ].join('\n');
+  const flexDocOk = pflex4(flexOk);
+  const okDiags = computeFlexDiagnostics(flexDocOk, flexOk);
+  const okOverlap = okDiags.filter(d => d.message.includes('shadowed') || d.message.includes('keyword'));
+  assert(okOverlap.length === 0, `Keyword before identifier pattern is not flagged`);
+}
+
+// ════════════════════════════════════════
+// TEST 19: Flex – Missing %option noyywrap (NEW 7)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Flex Missing noyywrap ===\n');
+
+{
+  // No %option noyywrap and no yywrap() defined
+  const flexSrc = [
+    '%%',
+    '[a-z]+   { }',
+    '%%',
+  ].join('\n');
+
+  const { parseFlexDocument: pflex5 } = require('../server/src/parser/flexParser');
+  const flexDoc = pflex5(flexSrc);
+  const diags = computeFlexDiagnostics(flexDoc, flexSrc);
+
+  const yywrapDiags = diags.filter(d => d.message.includes('noyywrap') || d.message.includes('yywrap'));
+  assert(yywrapDiags.length >= 1, `Missing noyywrap produces a Warning`);
+  assert(yywrapDiags[0]?.severity === 2, `Missing noyywrap has Warning severity`);
+
+  // With %option noyywrap → no warning
+  const flexWithOption = [
+    '%option noyywrap',
+    '%%',
+    '[a-z]+   { }',
+    '%%',
+  ].join('\n');
+  const flexDocOpt = pflex5(flexWithOption);
+  const optDiags = computeFlexDiagnostics(flexDocOpt, flexWithOption);
+  const optYywrap = optDiags.filter(d => d.message.includes('noyywrap') || d.message.includes('yywrap'));
+  assert(optYywrap.length === 0, `%option noyywrap suppresses the Warning`);
+
+  // With yywrap defined in code → no warning
+  const flexWithYywrap = [
+    '%{',
+    'int yywrap(void) { return 1; }',
+    '%}',
+    '%%',
+    '[a-z]+   { }',
+    '%%',
+  ].join('\n');
+  const flexDocYY = pflex5(flexWithYywrap);
+  const yyDiags = computeFlexDiagnostics(flexDocYY, flexWithYywrap);
+  const yyWrap = yyDiags.filter(d => d.message.includes('noyywrap') || d.message.includes('yywrap'));
+  assert(yyWrap.length === 0, `yywrap() definition suppresses the Warning`);
+}
+
+// ════════════════════════════════════════
+// TEST 20: False-positive fix — bare "rule :" header vs. true empty production
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: FP Fix — %empty bare header ===\n');
+
+{
+  // "rule :" on its own line followed by body on the next lines.
+  // The parser creates a phantom empty alternative for the header line;
+  // the diagnostic must NOT fire for it.
+  const bisonBare = [
+    '%token NUMBER',
+    '%%',
+    'start : list ;',
+    'list :',               // bare rule-header — NOT an empty production
+    '    NUMBER list',
+    '  | %empty',
+    '  ;',
+    '%%',
+  ].join('\n');
+
+  const docBare = parseBisonDocument(bisonBare);
+  const bareDiags = computeBisonDiagnostics(docBare, bisonBare);
+  const bareEmpty = bareDiags.filter(
+    d => d.message.includes('%empty') && d.message.includes("'list'"),
+  );
+  assert(bareEmpty.length === 0, `Bare 'list :' header does not trigger false %empty warning`);
+
+  // A genuine empty production "| ;" must still be detected.
+  const bisonRealEmpty = [
+    '%token NUMBER',
+    '%%',
+    'start : list ;',
+    'list : NUMBER list',
+    '     |',               // real empty production without %empty
+    '     ;',
+    '%%',
+  ].join('\n');
+
+  const docReal = parseBisonDocument(bisonRealEmpty);
+  const realDiags = computeBisonDiagnostics(docReal, bisonRealEmpty);
+  const realEmpty = realDiags.filter(
+    d => d.message.includes('%empty') && d.message.includes("'list'"),
+  );
+  assert(realEmpty.length >= 1, `Genuine empty production '| ;' still produces a Warning`);
+  assert(realEmpty[0]?.severity === 2, `Genuine empty production Warning has Warning severity`);
+
+  // "rule : ;" on a single line — still an empty production, must still warn.
+  const bisonInline = [
+    '%token NUMBER',
+    '%%',
+    'start : opt ;',
+    'opt : NUMBER',
+    '    | ;',              // inline empty — must warn
+    '%%',
+  ].join('\n');
+
+  const docInline = parseBisonDocument(bisonInline);
+  const inlineDiags = computeBisonDiagnostics(docInline, bisonInline);
+  const inlineEmpty = inlineDiags.filter(
+    d => d.message.includes('%empty') && d.message.includes("'opt'"),
+  );
+  assert(inlineEmpty.length >= 1, `Inline 'rule : ;' empty production still produces a Warning`);
+
+  // Edge case: bare "rule :" header immediately followed by "| alt" on the next
+  // line.  The phantom alternative IS a genuine empty first production; the
+  // diagnostic must still fire.
+  const bisonBareWithPipe = [
+    '%token LETTER',
+    '%%',
+    'start : opt ;',
+    'opt :',
+    '    | LETTER',    // first alternative is empty (bare header + first |)
+    '    ;',
+    '%%',
+  ].join('\n');
+
+  const docBWP = parseBisonDocument(bisonBareWithPipe);
+  const bwpDiags = computeBisonDiagnostics(docBWP, bisonBareWithPipe);
+  const bwpEmpty = bwpDiags.filter(
+    d => d.message.includes('%empty') && d.message.includes("'opt'"),
+  );
+  assert(bwpEmpty.length >= 1, `Bare header followed by '| alt' still produces a %empty warning`);
+}
+
+// ════════════════════════════════════════
+// TEST 21: False-positive fix — shift/reduce with declared precedence
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: FP Fix — shift/reduce with %right/%left ===\n');
+
+{
+  // Classic dangling-else: two alts start with IF, but IF is declared %right.
+  // Bison resolves this implicitly; the diagnostic must NOT fire.
+  const bisonDanglingElse = [
+    '%token IF ELSE NUMBER',
+    '%right IF ELSE',
+    '%%',
+    'start : stmt ;',
+    'stmt : IF NUMBER',
+    '     | IF NUMBER ELSE NUMBER',
+    '     | NUMBER',
+    '     ;',
+    '%%',
+  ].join('\n');
+
+  const docDE = parseBisonDocument(bisonDanglingElse);
+  const deDiags = computeBisonDiagnostics(docDE, bisonDanglingElse);
+  const deConflicts = deDiags.filter(
+    d => d.message.includes('shift/reduce') && d.message.includes('IF'),
+  );
+  assert(
+    deConflicts.length === 0,
+    `shift/reduce not warned when 'IF' has %right declaration`,
+  );
+
+  // Same grammar WITHOUT %right → must still warn.
+  const bisonNoPrecedence = [
+    '%token IF ELSE NUMBER',
+    '%%',
+    'start : stmt ;',
+    'stmt : IF NUMBER',
+    '     | IF NUMBER ELSE NUMBER',
+    '     | NUMBER',
+    '     ;',
+    '%%',
+  ].join('\n');
+
+  const docNP = parseBisonDocument(bisonNoPrecedence);
+  const npDiags = computeBisonDiagnostics(docNP, bisonNoPrecedence);
+  const npConflicts = npDiags.filter(
+    d => d.message.includes('shift/reduce') && d.message.includes('IF'),
+  );
+  assert(
+    npConflicts.length >= 1,
+    `shift/reduce still warned when 'IF' has no precedence declaration`,
+  );
+
+  // %left covers PLUS and MINUS — expression grammar must not warn.
+  const bisonExpr = [
+    '%token NUMBER PLUS MINUS',
+    '%left PLUS MINUS',
+    '%%',
+    'start : expr ;',
+    'expr : expr PLUS NUMBER',
+    '     | expr MINUS NUMBER',
+    '     | NUMBER',
+    '     ;',
+    '%%',
+  ].join('\n');
+
+  const docExpr = parseBisonDocument(bisonExpr);
+  const exprDiags = computeBisonDiagnostics(docExpr, bisonExpr);
+  // Note: firstSymbol of "expr PLUS NUMBER" is "expr" (non-terminal, lowercase)
+  // so the shift/reduce heuristic would not fire on it anyway — but the test
+  // also confirms no spurious warning appears.
+  const exprConflicts = exprDiags.filter(d => d.message.includes('shift/reduce'));
+  assert(exprConflicts.length === 0, `Expression grammar with %left has no shift/reduce warning`);
+}
+
+// ════════════════════════════════════════
+// TEST 22: Parser — multi-line rule continuation accumulation
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Multi-line rule continuation ===\n');
+
+{
+  // Rule with bare "rule :" header and multi-line body; action is on the
+  // continuation line, so $n references must be validated against the full
+  // accumulated symbol count (not just those on the header line).
+  const bisonSrc = [
+    '%token NUMBER PLUS MINUS',
+    '%%',
+    'start : expr ;',
+    'expr :',
+    '    expr PLUS NUMBER   { $$ = $1 + $3; }',  // 3 symbols, $3 valid
+    '  | expr MINUS NUMBER  { $$ = $1 - $3; }',  // 3 symbols, $3 valid
+    '  | NUMBER',
+    '  ;',
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(bisonSrc);
+  const exprRule = doc.rules.get('expr');
+
+  // All three alternatives must be present (no phantom empty alt counted separately)
+  assert(
+    exprRule?.alternatives.length === 3,
+    `Multi-line rule 'expr' has 3 alternatives (got ${exprRule?.alternatives.length})`,
+  );
+
+  // Continuation symbols must be accumulated into the first alternative
+  assert(
+    !!exprRule?.alternatives[0].symbols.includes('PLUS'),
+    `First alt of 'expr' has PLUS (from continuation line)`,
+  );
+  assert(
+    !!exprRule?.alternatives[0].symbols.includes('NUMBER'),
+    `First alt of 'expr' has NUMBER (from continuation line)`,
+  );
+
+  const diags = computeBisonDiagnostics(doc, bisonSrc);
+
+  // $3 is valid for a 3-symbol alternative — must NOT be flagged
+  const oobDiags = diags.filter(d => d.message.includes('out of bounds'));
+  assert(oobDiags.length === 0, `Valid $3 in 3-symbol multi-line alt is not flagged`);
+
+  // Bare 'expr:' header with continuation body must NOT trigger %empty warning
+  const emptyDiags = diags.filter(
+    d => d.message.includes('%empty') && d.message.includes("'expr'"),
+  );
+  assert(emptyDiags.length === 0, `Multi-line 'expr:' does not trigger false %empty`);
+
+  // — Negative case: $4 in a 3-symbol multi-line alt must still be caught ——
+  const bisonOob = [
+    '%token NUMBER PLUS',
+    '%%',
+    'start : expr ;',
+    'expr :',
+    '    expr PLUS NUMBER   { $$ = $4; }',  // 3 symbols, $4 out of bounds
+    '  | NUMBER',
+    '  ;',
+    '%%',
+  ].join('\n');
+
+  const docOob = parseBisonDocument(bisonOob);
+  const oobDiags2 = computeBisonDiagnostics(docOob, bisonOob)
+    .filter(d => d.message.includes('$4') && d.message.includes('out of bounds'));
+  assert(oobDiags2.length >= 1, `$4 in 3-symbol multi-line alt is still detected`);
+  assert(oobDiags2[0]?.severity === 1, `Multi-line $n out-of-bounds is an Error`);
+
+  // — Multi-line action block: $n refs are now tracked across lines ———————————
+  const bisonMLAction = [
+    '%token NUMBER PLUS',
+    '%%',
+    'start : expr ;',
+    'expr : NUMBER PLUS NUMBER',   // 3 symbols
+    '     {',                       // action opens on next line
+    '       $$ = $1 + $3;',         // $1 and $3 valid
+    '     }',
+    '     | NUMBER',
+    '     ;',
+    '%%',
+  ].join('\n');
+
+  const docMLA = parseBisonDocument(bisonMLAction);
+  const mlaDiags = computeBisonDiagnostics(docMLA, bisonMLAction)
+    .filter(d => d.message.includes('out of bounds'));
+  assert(mlaDiags.length === 0, `Valid $1/$3 in multi-line action block are not flagged`);
+
+  // $5 in a multi-line action block with only 3 symbols → Error
+  const bisonMLAOob = [
+    '%token NUMBER PLUS',
+    '%%',
+    'start : expr ;',
+    'expr : NUMBER PLUS NUMBER',   // 3 symbols
+    '     {',
+    '       $$ = $5;',              // $5 out of bounds
+    '     }',
+    '     | NUMBER',
+    '     ;',
+    '%%',
+  ].join('\n');
+
+  const docMLAOob = parseBisonDocument(bisonMLAOob);
+  const mlaOobDiags = computeBisonDiagnostics(docMLAOob, bisonMLAOob)
+    .filter(d => d.message.includes('$5') && d.message.includes('out of bounds'));
+  assert(mlaOobDiags.length >= 1, `$5 in multi-line action (3 symbols) is detected`);
+  assert(mlaOobDiags[0]?.severity === 1, `Multi-line action $5 out-of-bounds is an Error`);
+}
+
+// ════════════════════════════════════════
+// TEST 23: Flex — POSIX character class patterns shadow keywords
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Flex POSIX class keyword overlap ===\n');
+
+{
+  // [[:alpha:]][[:alnum:]_]* is a general identifier matcher; 'if' after it is shadowed
+  const flexSrc = [
+    '%option noyywrap',
+    '%%',
+    '[[:alpha:]][[:alnum:]_]*  { /* identifier */ }',
+    'if                        { /* keyword — shadowed */ }',
+    '%%',
+  ].join('\n');
+
+  const { parseFlexDocument: pflexPosix } = require('../server/src/parser/flexParser');
+  const flexDoc = pflexPosix(flexSrc);
+  const diags = computeFlexDiagnostics(flexDoc, flexSrc);
+
+  const overlapDiags = diags.filter(d => d.message.includes('shadowed') || d.message.includes('keyword'));
+  assert(overlapDiags.length >= 1, `POSIX-class identifier pattern shadows 'if' keyword`);
+  assert(overlapDiags[0]?.severity === 2, `POSIX keyword overlap Warning has Warning severity`);
+
+  // Keyword BEFORE POSIX pattern → no warning
+  const flexOk = [
+    '%option noyywrap',
+    '%%',
+    'if                        { /* keyword first */ }',
+    '[[:alpha:]][[:alnum:]_]*  { /* identifier */ }',
+    '%%',
+  ].join('\n');
+  const flexDocOk = pflexPosix(flexOk);
+  const okDiags = computeFlexDiagnostics(flexDocOk, flexOk);
+  const okOverlap = okDiags.filter(d => d.message.includes('shadowed') || d.message.includes('keyword'));
+  assert(okOverlap.length === 0, `Keyword before POSIX pattern is not flagged`);
+}
+
+// ════════════════════════════════════════
+// TEST 24: %start references non-existent rule (NEW 5)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: %start references non-existent rule ===\n');
+
+{
+  const bisonBad = [
+    '%token NUMBER',
+    '%start missing_rule',
+    '%%',
+    'program : NUMBER ;',
+    '%%',
+  ].join('\n');
+
+  const docBad = parseBisonDocument(bisonBad);
+  assert(docBad.startSymbol === 'missing_rule', `%start 'missing_rule' parsed`);
+  const diagsBad = computeBisonDiagnostics(docBad, bisonBad);
+  const startErrDiags = diagsBad.filter(d => d.message.includes('missing_rule') && d.message.includes('no corresponding rule'));
+  assert(startErrDiags.length >= 1, `%start with non-existent rule produces an Error`);
+  assert(startErrDiags[0]?.severity === 1, `%start missing rule diagnostic has Error severity`);
+
+  // Valid %start — no error
+  const bisonOk = [
+    '%token NUMBER',
+    '%start program',
+    '%%',
+    'program : NUMBER ;',
+    '%%',
+  ].join('\n');
+  const docOk = parseBisonDocument(bisonOk);
+  const diagsOk = computeBisonDiagnostics(docOk, bisonOk);
+  const startErrOk = diagsOk.filter(d => d.message.includes('no corresponding rule'));
+  assert(startErrOk.length === 0, `Valid %start does not produce an Error`);
+}
+
+// ════════════════════════════════════════
+// TEST 25: %prec with undeclared token (NEW 6)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: %prec with undeclared token ===\n');
+
+{
+  const bisonBad = [
+    '%token NUMBER PLUS',
+    '%%',
+    'start : expr ;',
+    'expr : expr PLUS expr %prec NONEXISTENT',
+    '     | NUMBER',
+    '     ;',
+    '%%',
+  ].join('\n');
+
+  const docBad = parseBisonDocument(bisonBad);
+  const diagsBad = computeBisonDiagnostics(docBad, bisonBad);
+  const precDiags = diagsBad.filter(d => d.message.includes('NONEXISTENT') && d.message.includes('%prec'));
+  assert(precDiags.length >= 1, `%prec with undeclared token produces a Warning`);
+  assert(precDiags[0]?.severity === 2, `%prec undeclared token has Warning severity`);
+
+  // %prec with a declared token → no warning
+  const bisonOk = [
+    '%token NUMBER PLUS',
+    '%right UMINUS',
+    '%%',
+    'start : expr ;',
+    'expr : expr PLUS expr %prec UMINUS',
+    '     | NUMBER',
+    '     ;',
+    '%%',
+  ].join('\n');
+  const docOk = parseBisonDocument(bisonOk);
+  const diagsOk = computeBisonDiagnostics(docOk, bisonOk);
+  const precOk = diagsOk.filter(d => d.message.includes('UMINUS') && d.message.includes('%prec'));
+  assert(precOk.length === 0, `%prec with declared token is not flagged`);
+}
+
+// ════════════════════════════════════════
+// TEST 26: Duplicate rule definitions (NEW 7)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Duplicate rule definitions ===\n');
+
+{
+  const bisonDup = [
+    '%token NUMBER PLUS',
+    '%%',
+    'start : expr ;',
+    'expr : NUMBER PLUS NUMBER ;',
+    'expr : NUMBER ;',           // duplicate!
+    '%%',
+  ].join('\n');
+
+  const docDup = parseBisonDocument(bisonDup);
+  assert(docDup.duplicateRules.length >= 1, `Duplicate rule 'expr' recorded`);
+  assert(docDup.duplicateRules[0].name === 'expr', `Duplicate rule name is 'expr'`);
+
+  const diagsDup = computeBisonDiagnostics(docDup, bisonDup);
+  const dupDiags = diagsDup.filter(d => d.message.includes("'expr'") && d.message.includes('more than once'));
+  assert(dupDiags.length >= 1, `Duplicate rule produces a Warning`);
+  assert(dupDiags[0]?.severity === 2, `Duplicate rule Warning has Warning severity`);
+
+  // No duplicate → no warning
+  const bisonOk = [
+    '%token NUMBER PLUS',
+    '%%',
+    'start : expr ;',
+    'expr : NUMBER PLUS NUMBER',
+    '     | NUMBER',
+    '     ;',
+    '%%',
+  ].join('\n');
+  const docOk = parseBisonDocument(bisonOk);
+  assert(docOk.duplicateRules.length === 0, `No duplicate rules in valid grammar`);
+  const diagsOk = computeBisonDiagnostics(docOk, bisonOk);
+  const dupOk = diagsOk.filter(d => d.message.includes('more than once'));
+  assert(dupOk.length === 0, `No duplicate warning in valid grammar`);
+}
+
+// ════════════════════════════════════════
+// TEST 27: Rule with no base case (NEW 8)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Rule with no base case ===\n');
+
+{
+  // All alternatives are recursive — no base case
+  const bisonInfinite = [
+    '%token PLUS',
+    '%%',
+    'start : expr ;',
+    'expr : expr PLUS expr',
+    '     | expr PLUS expr PLUS expr',
+    '     ;',
+    '%%',
+  ].join('\n');
+
+  const docInf = parseBisonDocument(bisonInfinite);
+  const diagsInf = computeBisonDiagnostics(docInf, bisonInfinite);
+  const baseDiags = diagsInf.filter(d => d.message.includes('no base case') && d.message.includes("'expr'"));
+  assert(baseDiags.length >= 1, `Fully-recursive rule produces a Warning`);
+  assert(baseDiags[0]?.severity === 2, `No-base-case Warning has Warning severity`);
+
+  // Grammar with a base case — must NOT warn
+  const bisonOk = [
+    '%token NUMBER PLUS',
+    '%%',
+    'start : expr ;',
+    'expr : expr PLUS NUMBER',
+    '     | NUMBER',
+    '     ;',
+    '%%',
+  ].join('\n');
+  const docOk = parseBisonDocument(bisonOk);
+  const diagsOk = computeBisonDiagnostics(docOk, bisonOk);
+  const baseOk = diagsOk.filter(d => d.message.includes('no base case') && d.message.includes("'expr'"));
+  assert(baseOk.length === 0, `Rule with base case does not trigger warning`);
+}
+
+// ════════════════════════════════════════
+// TEST 28: Flex — multiple <<EOF>> rules for same context (NEW 8)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Flex duplicate <<EOF>> rules ===\n');
+
+{
+  const flexDup = [
+    '%option noyywrap',
+    '%%',
+    '<<EOF>>   { return 0; }',
+    '<<EOF>>   { return 1; }',  // duplicate for INITIAL context
+    '[a-z]+    { }',
+    '%%',
+  ].join('\n');
+
+  const { parseFlexDocument: pflexEof } = require('../server/src/parser/flexParser');
+  const flexDoc = pflexEof(flexDup);
+  const diags = computeFlexDiagnostics(flexDoc, flexDup);
+
+  const eofDiags = diags.filter(d => d.message.includes('<<EOF>>') && d.message.includes('Duplicate'));
+  assert(eofDiags.length >= 1, `Duplicate <<EOF>> rules produce a Warning`);
+  assert(eofDiags[0]?.severity === 2, `Duplicate <<EOF>> Warning has Warning severity`);
+
+  // Single <<EOF>> — no warning
+  const flexOk = [
+    '%option noyywrap',
+    '%%',
+    '[a-z]+    { }',
+    '<<EOF>>   { return 0; }',
+    '%%',
+  ].join('\n');
+  const flexDocOk = pflexEof(flexOk);
+  const okDiags = computeFlexDiagnostics(flexDocOk, flexOk);
+  const eofOk = okDiags.filter(d => d.message.includes('<<EOF>>') && d.message.includes('Duplicate'));
+  assert(eofOk.length === 0, `Single <<EOF>> rule does not trigger a warning`);
+}
+
+// ════════════════════════════════════════
+// TEST 29: Flex — %option stack without stack calls (NEW 9)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Flex %option stack unused ===\n');
+
+{
+  const flexUnused = [
+    '%option noyywrap stack',
+    '%%',
+    '[a-z]+   { }',
+    '%%',
+  ].join('\n');
+
+  const { parseFlexDocument: pflexStack } = require('../server/src/parser/flexParser');
+  const flexDoc = pflexStack(flexUnused);
+  const diags = computeFlexDiagnostics(flexDoc, flexUnused);
+
+  const stackDiags = diags.filter(d => d.message.includes('stack') && d.message.includes('yy_push_state'));
+  assert(stackDiags.length >= 1, `%option stack without stack calls produces a Warning`);
+  assert(stackDiags[0]?.severity === 2, `Unused stack option has Warning severity`);
+
+  // With yy_push_state in code → no warning
+  const flexUsed = [
+    '%option noyywrap stack',
+    '%%',
+    '[a-z]+   { yy_push_state(0); }',
+    '%%',
+  ].join('\n');
+  const flexDocUsed = pflexStack(flexUsed);
+  const usedDiags = computeFlexDiagnostics(flexDocUsed, flexUsed);
+  const stackUsed = usedDiags.filter(d => d.message.includes('stack') && d.message.includes('yy_push_state'));
+  assert(stackUsed.length === 0, `%option stack with yy_push_state call is not flagged`);
+}
+
+// ════════════════════════════════════════
 // SUMMARY
 // ════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

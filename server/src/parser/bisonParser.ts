@@ -7,6 +7,7 @@ import {
   PrecedenceDeclaration,
   RuleDefinition,
   RuleAlternative,
+  DollarRef,
 } from './types';
 
 /**
@@ -14,6 +15,7 @@ import {
  * Anything starting with % that isn't in this set → unknown directive diagnostic.
  */
 const KNOWN_BISON_DIRECTIVES = new Set([
+  // Modern Bison 3.x directives
   'token', 'type', 'nterm', 'define', 'code',
   'left', 'right', 'nonassoc', 'precedence',
   'start', 'union', 'expect', 'expect-rr', 'require',
@@ -23,6 +25,13 @@ const KNOWN_BISON_DIRECTIVES = new Set([
   'initial-action', 'verbose', 'no-lines', 'token-table',
   'output', 'file-prefix', 'header', 'name-prefix',
   'pure-parser', 'error-verbose',
+  // Yacc legacy (underscore variants + aliases) — tolerated without error,
+  // diagnostics.ts will emit Information-level migration suggestions for these.
+  'pure_parser', 'name_prefix', 'token_table', 'no_lines',
+  'lex_param', 'parse_param',
+  'binary',           // Yacc alias for %nonassoc
+  'expect_rr',        // underscore variant
+  'file_prefix',      // underscore variant
 ]);
 
 export function parseBisonDocument(text: string): BisonDocument {
@@ -37,6 +46,7 @@ export function parseBisonDocument(text: string): BisonDocument {
     separators: [],
     ruleReferences: new Map(),
     unknownDirectives: [],
+    duplicateRules: [],
   };
 
   // Phase 1: Find %% separators (skip those inside code blocks)
@@ -149,10 +159,20 @@ export function parseBisonDocument(text: string): BisonDocument {
     const precMatch = trimmed.match(/^%(left|right|nonassoc|precedence)\s+(.*)/);
     if (precMatch) {
       const kind = precMatch[1] as PrecedenceDeclaration['kind'];
-      const symbols = precMatch[2].match(/[A-Z_][A-Z0-9_]*|"[^"]*"/g) || [];
+      const rawSymbols = precMatch[2].match(/[A-Z_][A-Z0-9_]*|"[^"]*"/g) || [];
+      const symbols: string[] = [];
+      const symbolRanges: Range[] = [];
+      for (const raw of rawSymbols) {
+        const sym = raw.replace(/"/g, '');
+        symbols.push(sym);
+        const col = line.indexOf(raw, line.indexOf(precMatch[2]));
+        const startCol = raw.startsWith('"') ? col + 1 : col;  // skip quote for aliases
+        symbolRanges.push(Range.create(i, startCol, i, startCol + sym.length));
+      }
       doc.precedence.push({
         kind,
-        symbols: symbols.map(s => s.replace(/"/g, '')),
+        symbols,
+        symbolRanges,
         location: Range.create(i, 0, i, line.length),
       });
       continue;
@@ -162,6 +182,8 @@ export function parseBisonDocument(text: string): BisonDocument {
     const startMatch = trimmed.match(/^%start\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
     if (startMatch) {
       doc.startSymbol = startMatch[1];
+      const symCol = line.indexOf(startMatch[1]);
+      doc.startSymbolLocation = Range.create(i, symCol >= 0 ? symCol : 0, i, (symCol >= 0 ? symCol : 0) + startMatch[1].length);
       continue;
     }
 
@@ -205,8 +227,23 @@ export function parseBisonDocument(text: string): BisonDocument {
     // Skip empty lines and comments
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*')) continue;
 
-    // Skip lines inside action blocks
+    // Inside a multi-line action block: scan for $n refs and track brace depth.
     if (braceDepth > 0) {
+      if (currentRule) {
+        const mlRule = doc.rules.get(currentRule);
+        if (mlRule && mlRule.alternatives.length > 0) {
+          const lastAlt = mlRule.alternatives[mlRule.alternatives.length - 1];
+          const dollarRegex = /\$(\d+)/g;
+          let dm: RegExpExecArray | null;
+          while ((dm = dollarRegex.exec(line)) !== null) {
+            const n = parseInt(dm[1], 10);
+            (lastAlt.dollarRefs ??= []).push({
+              n,
+              range: Range.create(i, dm.index, i, dm.index + dm[0].length),
+            });
+          }
+        }
+      }
       for (const ch of line) {
         if (ch === '{') braceDepth++;
         if (ch === '}') braceDepth = Math.max(0, braceDepth - 1);
@@ -225,23 +262,62 @@ export function parseBisonDocument(text: string): BisonDocument {
           location: Range.create(i, col, i, col + currentRule.length),
           alternatives: [],
         });
+      } else {
+        // Duplicate rule definition
+        doc.duplicateRules.push({
+          name: currentRule,
+          location: Range.create(i, col, i, col + currentRule.length),
+        });
       }
       // Parse the rest of the line after ':' as the first alternative
       const rest = trimmed.substring(ruleDefMatch[0].length);
       const altRange = Range.create(i, 0, i, line.length);
-      const alt: RuleAlternative = { range: altRange, firstSymbol: getFirstSymbol(rest), symbols: extractSymbols(rest) };
+      const precTokenMatch = rest.match(/%prec\s+(\S+)/);
+      const alt: RuleAlternative = {
+        range: altRange,
+        firstSymbol: getFirstSymbol(rest),
+        symbols: extractSymbols(rest),
+        dollarRefs: extractDollarRefs(rest, i, line),
+        hasExplicitEmpty: /%empty/.test(rest),
+        hasPrec: precTokenMatch !== null,
+        precToken: precTokenMatch ? precTokenMatch[1] : undefined,
+      };
       doc.rules.get(currentRule)!.alternatives.push(alt);
       extractRuleReferences(rest, i, line, doc);
     } else if (trimmed.startsWith('|') && currentRule) {
       // New alternative: track first symbol
       const altBody = trimmed.slice(1); // strip leading '|'
       const altRange = Range.create(i, 0, i, line.length);
-      const alt: RuleAlternative = { range: altRange, firstSymbol: getFirstSymbol(altBody), symbols: extractSymbols(altBody) };
+      const precTokenMatch = altBody.match(/%prec\s+(\S+)/);
+      const alt: RuleAlternative = {
+        range: altRange,
+        firstSymbol: getFirstSymbol(altBody),
+        symbols: extractSymbols(altBody),
+        dollarRefs: extractDollarRefs(altBody, i, line),
+        hasExplicitEmpty: /%empty/.test(altBody),
+        hasPrec: precTokenMatch !== null,
+        precToken: precTokenMatch ? precTokenMatch[1] : undefined,
+      };
       doc.rules.get(currentRule)?.alternatives.push(alt);
       extractRuleReferences(trimmed, i, line, doc);
     } else if (currentRule) {
       // Continuation of current alternative (no '|', no rule def)
       extractRuleReferences(trimmed, i, line, doc);
+      // Accumulate symbols and $n refs into the last alternative.
+      // This fills the phantom alternative created by bare "rule :" header lines
+      // and handles multi-line productions (e.g. `rule:\n  A B C\n  { action }`).
+      const curRule = doc.rules.get(currentRule);
+      if (curRule && curRule.alternatives.length > 0) {
+        const lastAlt = curRule.alternatives[curRule.alternatives.length - 1];
+        const newSymbols = extractSymbols(trimmed);
+        const newRefs    = extractDollarRefs(trimmed, i, line);
+        if (!lastAlt.firstSymbol && newSymbols.length > 0) lastAlt.firstSymbol = newSymbols[0];
+        lastAlt.symbols.push(...newSymbols);
+        lastAlt.dollarRefs = [...(lastAlt.dollarRefs ?? []), ...newRefs];
+        if (/%empty/.test(trimmed)) lastAlt.hasExplicitEmpty = true;
+        const contPrecMatch = trimmed.match(/%prec\s+(\S+)/);
+        if (contPrecMatch) { lastAlt.hasPrec = true; lastAlt.precToken = contPrecMatch[1]; }
+      }
     }
 
     // Track braces
@@ -322,13 +398,41 @@ function parseTokenNames(text: string, type: string | undefined, lineNum: number
   }
 }
 
+/**
+ * Scan the inline action block(s) on a single line for $n references.
+ * Only handles single-line { ... } blocks; multi-line actions are not detected here.
+ * $$ and $<type>n are deliberately skipped.
+ */
+function extractDollarRefs(text: string, lineNum: number, fullLine: string): DollarRef[] {
+  const refs: DollarRef[] = [];
+  const actionRegex = /\{([^}]*)\}/g;
+  let actionMatch: RegExpExecArray | null;
+  while ((actionMatch = actionRegex.exec(text)) !== null) {
+    const actionContent = actionMatch[1];
+    const dollarRegex = /\$(\d+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = dollarRegex.exec(actionContent)) !== null) {
+      const n = parseInt(m[1], 10);
+      const fullMatch = '$' + m[1];
+      // Find the column in the original line (search after the opening brace)
+      const braceInLine = fullLine.indexOf('{');
+      const col = fullLine.indexOf(fullMatch, braceInLine >= 0 ? braceInLine : 0);
+      refs.push({
+        n,
+        range: Range.create(lineNum, col >= 0 ? col : 0, lineNum, (col >= 0 ? col : 0) + fullMatch.length),
+      });
+    }
+  }
+  return refs;
+}
+
 function extractRuleReferences(text: string, lineNum: number, fullLine: string, doc: BisonDocument): void {
   // Find identifiers in rule bodies (potential token/nonterminal references)
-  // Skip: strings, actions (braces), %prec, %empty, comments
+  // Skip: strings, actions (braces), %prec keyword (but keep its token), %empty, comments
   const cleaned = text
     .replace(/"(?:[^"\\]|\\.)*"/g, '')     // remove strings
     .replace(/\{[^}]*\}/g, '')             // remove inline actions
-    .replace(/%prec\s+\S+/g, '')           // remove %prec
+    .replace(/%prec/g, '')                 // remove %prec keyword (keep the token name)
     .replace(/%empty/g, '')                // remove %empty
     .replace(/\/\/.*$/g, '');              // remove line comments
 

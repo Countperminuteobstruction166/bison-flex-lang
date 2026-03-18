@@ -8,6 +8,10 @@ node_modules/
 .eslintrc.json
 tests/
 images/icon.svg
+images/bison.png
+images/bison.svg
+images/reflex.png
+images/reflex.svg
 **/*.map
 .claude/
 .github/

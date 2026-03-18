@@ -119,9 +119,9 @@
     "semantic-values": {
       "patterns": [
         {
-          "comment": "Typed semantic value $<type>N or $<type>$",
+          "comment": "Typed semantic value $<type>N or $<type>$ — handles nested templates like $<std::vector<int>>1",
           "name": "variable.language.semantic-value.bison",
-          "match": "\\$<[^>]+>(?:\\$|[0-9]+)"
+          "match": "\\$<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>(?:\\$|[0-9]+)"
         },
         {
           "comment": "Semantic value $$ or $N or $name",
@@ -137,7 +137,7 @@
     },
 
     "action-block": {
-      "comment": "Action block { C++ code } in rules — with semantic values highlighted on top of C++",
+      "comment": "Action block { C++ code } — strings/comments fenced explicitly to prevent brace drift",
       "begin": "\\{",
       "end": "\\}",
       "beginCaptures": { "0": { "name": "punctuation.section.block.begin.bison" } },
@@ -145,6 +145,10 @@
       "contentName": "meta.embedded.block.cpp",
       "patterns": [
         { "include": "#semantic-values" },
+        { "include": "#cpp-block-comment" },
+        { "include": "#cpp-line-comment" },
+        { "include": "#cpp-string" },
+        { "include": "#cpp-char" },
         { "include": "#action-block" },
         { "include": "source.cpp" }
       ]
@@ -208,8 +212,8 @@
     },
 
     "code-directive-block": {
-      "comment": "%code [qualifier] { ... } block — closing } at start of line",
-      "begin": "^\\s*(%code)(?:\\s+(requires|provides|top))?\\s*$",
+      "comment": "%code [qualifier] { ... } block — { may be on same line or next line",
+      "begin": "^\\s*(%code)(?:\\s+(requires|provides|top))?\\s*(?=\\{|$)",
       "end": "(?=^\\s*%|^%%)",
       "beginCaptures": {
         "1": { "name": "keyword.control.directive.bison" },
@@ -296,8 +300,8 @@
     },
 
     "token-directive": {
-      "comment": "%token <type> NAME \"alias\" declarations",
-      "match": "^\\s*(%token)(?:\\s+(<[^>]+>))?\\s+(.*)",
+      "comment": "%token <type> NAME \"alias\" declarations — type handles nested templates",
+      "match": "^\\s*(%token)(?:\\s+(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>))?\\s+(.*)",
       "captures": {
         "1": { "name": "storage.type.token.bison" },
         "2": { "name": "entity.name.type.bison" },
@@ -306,8 +310,8 @@
     },
 
     "type-directive": {
-      "comment": "%type <type> nonterminal declarations",
-      "match": "^\\s*(%(?:type|nterm))\\s+(<[^>]+>)\\s+(.*)",
+      "comment": "%type <type> nonterminal declarations — type handles nested templates like <std::vector<int>>",
+      "match": "^\\s*(%(?:type|nterm))\\s+(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\\s+(.*)",
       "captures": {
         "1": { "name": "storage.type.nonterminal.bison" },
         "2": { "name": "entity.name.type.bison" },
@@ -421,9 +425,42 @@
     },
 
     "type-tag": {
-      "comment": "<type> tag in declarations",
+      "comment": "<type> tag in declarations — handles nested templates e.g. <std::vector<int>>",
       "name": "entity.name.type.bison",
-      "match": "<[^>]+>"
+      "match": "<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>"
+    },
+
+    "cpp-block-comment": {
+      "comment": "C++ block comment — fences } inside /* ... */ from ending action blocks",
+      "name": "comment.block.cpp.bison",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+
+    "cpp-line-comment": {
+      "comment": "C++ line comment — fences } on // ... lines from ending action blocks",
+      "name": "comment.line.double-slash.cpp.bison",
+      "match": "//.*$"
+    },
+
+    "cpp-string": {
+      "comment": "C++ double-quoted string — fences } inside \"...\" from ending action blocks",
+      "name": "string.quoted.double.cpp.bison",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        { "name": "constant.character.escape.cpp.bison", "match": "\\\\." }
+      ]
+    },
+
+    "cpp-char": {
+      "comment": "C++ character literal — fences } inside '...' from ending action blocks",
+      "name": "string.quoted.single.cpp.bison",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        { "name": "constant.character.escape.cpp.bison", "match": "\\\\." }
+      ]
     }
   }
 }

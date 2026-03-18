@@ -1,7 +1,7 @@
 {
   "Flex Scanner Skeleton": {
     "prefix": "flex-skeleton",
-    "description": "Complete Flex scanner file skeleton",
+    "description": "Complete standard Flex scanner: %option directives, a prologue with the parser header, three abbreviations (integer, whitespace, identifier), and rules for each. The third tabstop names the token-factory function used in both the INT and ID return statements.",
     "body": [
       "/* -*- C++ -*- */",
       "%option noyywrap",
@@ -11,7 +11,7 @@
       "%{",
       "  #include <string>",
       "  #include \"${1:parser.hh}\"",
-      "  $2",
+      "  ${2:// extra includes / globals}",
       "%}",
       "",
       "/* Abbreviations */",
@@ -26,7 +26,7 @@
       "\\n       { /* handle newline */ }",
       "",
       "{int}     {",
-      "            return ${3:TOKEN}(INT, atoi(yytext));",
+      "            return ${3:make_token}(INT, atoi(yytext));",
       "          }",
       "",
       "{id}      {",
@@ -40,9 +40,10 @@
       "%%"
     ]
   },
+
   "RE-flex Scanner Skeleton": {
     "prefix": "reflex-skeleton",
-    "description": "Complete RE-flex scanner file skeleton",
+    "description": "Complete RE-flex scanner: bison-complete/bison-locations options for seamless C++ Bison integration, %top{} for includes, abbreviations, and a placeholder rules section. Tabstops: (1) parser class, (2) namespace, (3) lexer class, (4) parser header, (5) extra code, (6) first rule.",
     "body": [
       "/* -*- C++ -*- */",
       "%option noyywrap",
@@ -57,7 +58,7 @@
       "%top{",
       "  #include <string>",
       "  #include \"${4:parser.hh}\"",
-      "  $5",
+      "  ${5:// extra includes}",
       "}",
       "",
       "/* Abbreviations */",
@@ -71,7 +72,7 @@
       "{spaces}  { /* skip whitespace */ }",
       "\\n       { /* handle newline */ }",
       "",
-      "$6",
+      "${6:// rules}",
       "",
       ".         {",
       "            /* error: unexpected character */",
@@ -80,77 +81,86 @@
       "%%"
     ]
   },
+
   "Rule with Action": {
     "prefix": "rule",
-    "description": "Flex rule with action block",
+    "description": "Single Flex rule: a pattern followed by a C action block. The pattern is matched against the input; yytext holds the matched text inside the action.",
     "body": [
       "${1:pattern}  {",
-      "            ${2:action}",
+      "            ${2:/* action */}",
       "          }"
     ]
   },
+
   "Rule with Start Condition": {
     "prefix": "rule-sc",
-    "description": "Flex rule with start condition",
+    "description": "Flex rule that fires only when the scanner is in a specific start condition. Use <CONDITION>pattern to restrict a rule to one state, or <*>pattern to match in all states. Declare the condition with %x (exclusive) or %s (inclusive).",
     "body": [
       "<${1:CONDITION}>${2:pattern}  {",
-      "            ${3:action}",
+      "            ${3:/* action */}",
       "          }"
     ]
   },
+
   "Start Condition Exclusive": {
     "prefix": "%x",
-    "description": "Exclusive start condition declaration",
+    "description": "Declares an exclusive start condition. While in an exclusive state, only rules explicitly tagged with <SC_NAME> are active — untagged rules are suppressed. Use for string literals, block comments, and include handling.",
     "body": [
       "%x ${1:SC_NAME}"
     ]
   },
+
   "Start Condition Inclusive": {
     "prefix": "%s",
-    "description": "Inclusive start condition declaration",
+    "description": "Declares an inclusive start condition. While in an inclusive state, untagged rules remain active in addition to rules tagged with <SC_NAME>. Use when you need a small overlay of extra rules on top of the default state.",
     "body": [
       "%s ${1:SC_NAME}"
     ]
   },
+
   "Option Directive": {
     "prefix": "%option",
-    "description": "%option directive",
+    "description": "%option controls scanner features. Common choices: noyywrap (no file chaining), reentrant (thread-safe), yylineno (track line numbers), stack (enable start-condition stack for yypush_buffer_state), nodefault (warn on unmatched input).",
     "body": [
       "%option ${1|noyywrap,nounput,noinput,nodefault,debug,bison-complete,bison-locations,reentrant,yylineno,stack,8bit,prefix|}"
     ]
   },
+
   "Top Block": {
     "prefix": "%top",
-    "description": "%top code block",
+    "description": "%top{ } is placed at the very top of the generated scanner, before any other code — even before the Flex header. Use it for #include directives that the generated code depends on, or for macro definitions.",
     "body": [
       "%top{",
-      "  $1",
+      "  ${1:// #include \"parser.hh\"}",
       "}"
     ]
   },
+
   "Class Block": {
     "prefix": "%class",
-    "description": "%class member block (RE-flex)",
+    "description": "%class{ } injects member declarations into the generated C++ lexer class (RE-flex only). Use it for member variables such as symbol tables, string buffers, or include-depth counters that the scanner actions need to access.",
     "body": [
       "%class{",
-      "  $1",
+      "  ${1:// member declarations}",
       "}"
     ]
   },
+
   "Prologue Block": {
     "prefix": "%{",
-    "description": "Prologue code block",
+    "description": "Legacy prologue block: code placed verbatim at the top of the generated scanner implementation. Prefer %top{ } for headers and %{ %} only when %top is unavailable (very old Flex versions).",
     "body": [
       "%{",
-      "  $1",
+      "  ${1:// #include <stdio.h>}",
       "%}"
     ]
   },
+
   "Comment Block Handler": {
     "prefix": "comment-handler",
-    "description": "Nested comment handler with start condition",
+    "description": "Nested block-comment handler using RE-flex start() / the standard start condition API. Tracks comment depth so /* inside a comment does not terminate it. Tabstops: (1) depth variable name, (2) exclusive start condition name. NOTE: uses start() which is RE-flex API — replace with BEGIN() for standard Flex.",
     "body": [
-      "/* Comments */",
+      "/* Comments — nested depth tracking */",
       "\"/*\"              {",
       "                    ${1:comment_depth} = 1;",
       "                    start(${2:SC_COMMENT});",
@@ -161,17 +171,18 @@
       "                    if ($1 == 0)",
       "                      start(INITIAL);",
       "                  }",
-      "<$2>\"\\n\"  { /* track newlines */ }",
+      "<$2>\"\\n\"  { /* track newlines: yylineno++ if not using %option yylineno */ }",
       "<$2><<EOF>> {",
       "                    /* error: unterminated comment */",
       "                    start(INITIAL);",
       "                  }",
-      "<$2>.     { /* ignore */ }"
+      "<$2>.     { /* discard comment body */ }"
     ]
   },
+
   "String Handler": {
     "prefix": "string-handler",
-    "description": "String literal handler with start condition",
+    "description": "String literal handler with an exclusive start condition. Accumulates characters into a buffer, processes escape sequences (\\n \\t \\\" \\\\), returns the completed string token, and reports an error on unterminated input. Tabstops: (1) accumulator variable, (2) exclusive start condition name.",
     "body": [
       "/* Strings */",
       "\"\\\"\"              {",
@@ -193,20 +204,21 @@
       "<$2>.      { $1 += text(); }"
     ]
   },
+
   "EOF Handler": {
     "prefix": "eof-handler",
-    "description": "EOF handler with start condition",
+    "description": "<<EOF>> rule for a specific start condition. Fires when the end of input is reached while the scanner is in the given state — typically an error condition for unterminated strings, comments, or include files.",
     "body": [
       "<${1:CONDITION}><<EOF>> {",
-      "                    ${2:/* error handling */}",
-      "                    start(INITIAL);",
+      "                    ${2:/* error: unexpected end of file */}",
+      "                    BEGIN(INITIAL);",
       "                  }"
     ]
   },
 
   "Number Handler": {
     "prefix": "number-handler",
-    "description": "Complete numeric literal handler: integers, floats, and scientific notation",
+    "description": "Complete numeric literal handler for standard Flex (BEGIN/yytext API). Covers integers (atoi), decimal floats, and scientific notation (atof). Tabstops: (1) integer lvalue (e.g. yylval.ival), (2) INTEGER token, (3) float lvalue (e.g. yylval.dval), (4) FLOAT token.",
     "body": [
       "/* --- Numeric literals --- */",
       "[0-9]+  {",
@@ -228,7 +240,7 @@
 
   "Identifier Handler": {
     "prefix": "identifier-handler",
-    "description": "Identifier rule with optional keyword table lookup",
+    "description": "Identifier rule with optional keyword table lookup. The matched text is stored via strdup; a keyword_lookup function is called first so that reserved words return their own token type. Falls back to a generic IDENTIFIER token. Tabstops: (1) string lvalue, (2) keyword lookup function, (3) IDENTIFIER token.",
     "body": [
       "/* --- Identifiers --- */",
       "[a-zA-Z_][a-zA-Z0-9_]*  {",
@@ -241,9 +253,9 @@
 
   "Multiline Comment Handler": {
     "prefix": "multiline-comment",
-    "description": "Nested /* */ comment handler with depth counter and BEGIN() (standard Flex)",
+    "description": "Nested /* */ comment handler for standard Flex using BEGIN(). An exclusive start condition and a depth counter allow /* inside a comment. The %x declaration is included so you can paste the whole block into the definitions section. Tabstops: (1) exclusive SC name, (2) depth counter variable name (declare as int in your prologue).",
     "body": [
-      "/* --- Nested C-style comments (standard Flex) --- */",
+      "/* --- Nested C-style comments (standard Flex / BEGIN API) --- */",
       "%x ${1:SC_COMMENT}",
       "",
       "/* Declare in your C prologue: int ${2:comment_depth}; */",
@@ -257,12 +269,102 @@
       "          if (--${2} == 0)",
       "            BEGIN(INITIAL);",
       "        }",
-      "<${1}>\\n    { /* count lines: yylineno++; */ }",
+      "<${1}>\\n    { /* optional: yylineno++ */ }",
       "<${1}><<EOF>>  {",
       "          yyerror(\"unterminated comment\");",
       "          BEGIN(INITIAL);",
       "        }",
-      "<${1}>.   { /* discard comment content */ }"
+      "<${1}>.   { /* discard comment body */ }"
+    ]
+  },
+
+  "Include File Handler": {
+    "prefix": "include-handler",
+    "description": "Handles #include \"filename\" by pushing a new buffer with yypush_buffer_state(), enabling nested includes up to a configurable depth. Requires %option stack in your definitions section. At <<EOF>> the previous buffer is restored automatically. Tabstops: (1) max include depth constant, (2) exclusive SC name for the filename, (3) include depth counter variable.",
+    "body": [
+      "/* --- #include file handler (requires %option stack) --- */",
+      "",
+      "/* Declare in your C prologue:",
+      " *   #define MAX_INCLUDE_DEPTH ${1:10}",
+      " *   int ${3:include_depth} = 0;",
+      " */",
+      "",
+      "%x ${2:SC_INCLUDE}",
+      "",
+      "\"#\"[ \\t]*\"include\"[ \\t]*\"\\\"\"  {",
+      "          BEGIN(${2});",
+      "        }",
+      "",
+      "<${2}>[^\\\"/\\n]+  {",
+      "          if (${3} >= ${1})",
+      "            { yyerror(\"includes nested too deeply\"); exit(1); }",
+      "          yyin = fopen(yytext, \"r\");",
+      "          if (!yyin)",
+      "            { yyerror(\"cannot open include file\"); exit(1); }",
+      "          yypush_buffer_state(yy_create_buffer(yyin, YY_BUF_SIZE));",
+      "          ${3}++;",
+      "          BEGIN(INITIAL);",
+      "        }",
+      "",
+      "<${2}>\\\"  { BEGIN(INITIAL); }",
+      "",
+      "<<EOF>>  {",
+      "          if (${3} == 0)",
+      "            yyterminate();",
+      "          yypop_buffer_state();",
+      "          ${3}--;",
+      "        }"
+    ]
+  },
+
+  "Indentation Handler": {
+    "prefix": "indentation-handler",
+    "description": "Python-style indentation tracking that emits INDENT / DEDENT tokens. Compares leading whitespace of each non-blank line against an indent stack. Tab width is configurable. NOTE: the while loop emits only one DEDENT per call — for multiple levels use a pending-dedent counter or a token queue. Place these rules first. Tabstops: (1) stack size, (2) INDENT token, (3) DEDENT token, (4) NEWLINE token, (5) tab width in spaces.",
+    "body": [
+      "/* --- Indentation handler (Python-style INDENT/DEDENT) ---",
+      " * Declare in your C prologue:",
+      " *   int indent_stack[${1:64}] = {0};",
+      " *   int indent_top = 0;",
+      " * Token IDs expected: ${2:INDENT}, ${3:DEDENT}, ${4:NEWLINE}",
+      " * --------------------------------------------------------- */",
+      "",
+      "^[ \\t]*\\n   { /* blank line — skip, do not emit NEWLINE */ }",
+      "",
+      "^[ \\t]+  {",
+      "          /* count leading spaces (tab = ${5:8} spaces) */",
+      "          int col = 0;",
+      "          for (char *p = yytext; *p; p++)",
+      "            col += (*p == '\\t') ? ${5} : 1;",
+      "",
+      "          if (col > indent_stack[indent_top]) {",
+      "            indent_stack[++indent_top] = col;",
+      "            return ${2};",
+      "          }",
+      "          if (col < indent_stack[indent_top]) {",
+      "            /* NOTE: emits one DEDENT; for multiple levels,",
+      "             * decrement indent_top in a loop and use a",
+      "             * pending_dedent counter returned on subsequent calls */",
+      "            while (indent_top > 0 && col < indent_stack[indent_top])",
+      "              indent_top--;",
+      "            return ${3};",
+      "          }",
+      "          /* same indentation level — no token */",
+      "        }",
+      "",
+      "\\n  {",
+      "          /* emit NEWLINE only when inside an indented block */",
+      "          if (indent_top > 0)",
+      "            return ${4};",
+      "        }",
+      "",
+      "<<EOF>>  {",
+      "          /* flush remaining DEDENT tokens before EOF */",
+      "          if (indent_top > 0) {",
+      "            indent_top--;",
+      "            return ${3};",
+      "          }",
+      "          yyterminate();",
+      "        }"
     ]
   }
 }

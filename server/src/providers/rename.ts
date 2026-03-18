@@ -3,6 +3,16 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { DocumentModel, BisonDocument, FlexDocument, isBisonDocument } from '../parser/types';
 import { getWordAtPosition, WordAtPosition } from './utils';
 
+/** Bison/Flex built-in symbols that must not be renamed. */
+const BISON_KEYWORDS = new Set([
+  'error', 'EOF', 'YYEOF', 'YYUNDEF', 'YYerror',
+  'YYSTYPE', 'YYLTYPE', 'yylex', 'yyerror', 'yyparse',
+]);
+const FLEX_KEYWORDS = new Set([
+  'INITIAL', 'BEGIN', 'ECHO', 'REJECT',
+  'yytext', 'yyleng', 'yyin', 'yyout', 'yywrap',
+]);
+
 /**
  * Validate that the cursor is on a renameable symbol and return its range + placeholder.
  */
@@ -23,10 +33,14 @@ export function prepareRename(
   if (word.startsWith('%') || word.startsWith('$') || word.startsWith('@')) return null;
 
   if (isBisonDocument(doc)) {
+    // Block rename on Bison built-in keywords
+    if (BISON_KEYWORDS.has(word)) return null;
     if (doc.tokens.has(word) || doc.nonTerminals.has(word) || doc.rules.has(word)) {
       return { range: wordInfo.range, placeholder: word };
     }
   } else {
+    // Block rename on Flex built-in keywords
+    if (FLEX_KEYWORDS.has(word)) return null;
     if (doc.startConditions.has(word) || doc.abbreviations.has(word)) {
       return { range: wordInfo.range, placeholder: word };
     }
@@ -77,7 +91,21 @@ function collectBisonRenameEdits(doc: BisonDocument, oldName: string, newName: s
   const rule = doc.rules.get(oldName);
   if (rule) edits.push(TextEdit.replace(rule.location, newName));
 
-  // All references in rule bodies
+  // %start directive reference
+  if (doc.startSymbol === oldName && doc.startSymbolLocation) {
+    edits.push(TextEdit.replace(doc.startSymbolLocation, newName));
+  }
+
+  // Precedence declaration references (%left, %right, %nonassoc, %precedence)
+  for (const prec of doc.precedence) {
+    for (let j = 0; j < prec.symbols.length; j++) {
+      if (prec.symbols[j] === oldName && prec.symbolRanges[j]) {
+        edits.push(TextEdit.replace(prec.symbolRanges[j], newName));
+      }
+    }
+  }
+
+  // All references in rule bodies (includes %prec token references)
   const refs = doc.ruleReferences.get(oldName);
   if (refs) {
     for (const range of refs) {
