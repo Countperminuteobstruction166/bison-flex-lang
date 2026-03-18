@@ -1361,7 +1361,7 @@ function renderFlexTestRuleHtml(initialPattern: string): string {
       var p = pat;
       // Handle Flex double-quoted literals: "..." -> escaped literal
       p = p.replace(/"([^"]*)"/g, function(_, s) {
-        return s.replace(/[.*+?^${}()|\\[\\]\\\\]/g, '\\\\' + '$&');
+        return s.replace(/[.*+?^{}$()|\\[\\]\\\\]/g, '\\\\$&');
       });
       // Replace {abbrev} references with a generic placeholder (word chars)
       p = p.replace(/[{]([a-zA-Z_][a-zA-Z0-9_]*)[}]/g, '[a-zA-Z0-9_]+');
