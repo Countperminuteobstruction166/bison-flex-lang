@@ -2,7 +2,7 @@
   "name": "bison-flex-lang",
   "displayName": "Bison/Flex Language Support",
   "description": "Full-featured language support for GNU Bison (.y, .yy) and Flex/RE-flex (.l, .ll) — syntax highlighting with embedded C/C++, real-time diagnostics, intelligent autocompletion, and hover documentation for all directives.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "theodevelop",
   "license": "MIT",
   "repository": {
@@ -132,6 +132,40 @@
         "command": "bisonFlex.showGrammarGraph",
         "title": "Bison: Show Grammar Graph",
         "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "bisonFlex.flexTestRule",
+        "title": "Flex: Test Rule",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "bisonFlex.explainConflict",
+        "title": "Bison: Explain Conflict",
+        "icon": "$(lightbulb)"
+      },
+      {
+        "command": "bisonFlex.generateAstSkeleton",
+        "title": "Bison: Generate AST Skeleton",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "bisonFlex.initTasksJson",
+        "title": "Bison/Flex: Initialize tasks.json",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "bisonFlex.addCmakeTarget",
+        "title": "Bison/Flex: Add CMake Target",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "bisonFlex.showReferences",
+        "title": "Bison/Flex: Show References",
+        "icon": "$(references)"
+      },
+      {
+        "command": "bisonFlex.noOp",
+        "title": "Bison/Flex: No-Op (internal)"
       }
     ],
     "menus": {
@@ -151,6 +185,34 @@
         {
           "command": "bisonFlex.showGrammarGraph",
           "when": "editorLangId == bison"
+        },
+        {
+          "command": "bisonFlex.flexTestRule",
+          "when": "editorLangId == flex"
+        },
+        {
+          "command": "bisonFlex.explainConflict",
+          "when": "editorLangId == bison"
+        },
+        {
+          "command": "bisonFlex.generateAstSkeleton",
+          "when": "editorLangId == bison"
+        },
+        {
+          "command": "bisonFlex.initTasksJson",
+          "when": "editorLangId == bison || editorLangId == flex"
+        },
+        {
+          "command": "bisonFlex.addCmakeTarget",
+          "when": "editorLangId == bison || editorLangId == flex"
+        },
+        {
+          "command": "bisonFlex.showReferences",
+          "when": "false"
+        },
+        {
+          "command": "bisonFlex.noOp",
+          "when": "false"
         }
       ]
     },
@@ -176,6 +238,21 @@
           "type": "string",
           "default": "flex",
           "description": "Path to the Flex executable. Defaults to 'flex' (must be in PATH)."
+        },
+        "bisonFlex.showInlayHints": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inlay hints for $1, $2, $$, etc. displaying the inferred semantic type from %type/%token declarations."
+        },
+        "bisonFlex.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Code Lens above Bison rules and Flex start conditions (reference count, entry point indicator)."
+        },
+        "bisonFlex.enableCmakeDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when a .y/.l file is not referenced by a BISON_TARGET / FLEX_TARGET in a nearby CMakeLists.txt."
         }
       }
     }
@@ -185,7 +262,8 @@
     "compile": "webpack --mode development",
     "compile:watch": "webpack --mode development --watch",
     "package": "webpack --mode production --devtool hidden-source-map",
-    "lint": "eslint client/src server/src --ext .ts"
+    "lint": "eslint client/src server/src --ext .ts",
+    "test-grammar": "vscode-tmgrammar-test -g syntaxes/bison.tmLanguage.json tests/grammar/bison-*.y && vscode-tmgrammar-test -g syntaxes/flex.tmLanguage.json tests/grammar/flex-*.l"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1",
@@ -202,6 +280,7 @@
     "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.0",
+    "vscode-tmgrammar-test": "^0.1.3",
     "webpack": "^5.89.0",
     "webpack-cli": "^5.1.4"
   }

@@ -1,7 +1,7 @@
 {
   "Bison Grammar Skeleton": {
     "prefix": "bison-skeleton",
-    "description": "Complete Bison grammar file skeleton",
+    "description": "Complete modern C++ Bison grammar: %require 3.8, api.value.type variant, api.token.constructor, %locations, %code requires / %code blocks, sample tokens, one rule, and the error() implementation. Start here for any new C++ parser.",
     "body": [
       "// -*- C++ -*-",
       "%require \"3.8\"",
@@ -19,29 +19,29 @@
       "%code requires",
       "{",
       "  #include <string>",
-      "  $3",
+      "  ${3:// forward declarations / AST node types}",
       "}",
       "",
       "%code",
       "{",
-      "  $4",
+      "  ${4:// #include \"scanner.hh\"}",
       "}",
       "",
       "%token <int>         INT    \"integer\"",
       "%token <std::string> STRING \"string\"",
       "",
-      "%type <$5> ${6:exp}",
+      "%type <${5:int}> ${6:expr}",
       "",
       "%start ${7:program}",
       "",
       "%%",
       "",
       "$7:",
-      "  $6 { $$ = $$1; }",
+      "  $6 { \\$\\$ = \\$1; }",
       ";",
       "",
       "$6:",
-      "  INT { $$ = $8; }",
+      "  INT { \\$\\$ = ${8:\\$1}; }",
       ";",
       "",
       "%%",
@@ -49,111 +49,124 @@
       "void",
       "${1}::${2}::error(const location_type& l, const std::string& m)",
       "{",
-      "  std::cerr << l << \": \" << m << std::endl;",
+      "  std::cerr << l << \": \" << m << '\\n';",
       "}",
       ""
     ]
   },
+
   "Rule Definition": {
     "prefix": "rule",
-    "description": "Grammar rule with action",
+    "description": "Single grammar rule with one production and a semantic action. The rule name goes before the colon; list symbols in the production body; write the C/C++ action inside braces. Terminate with a semicolon.",
     "body": [
-      "${1:name}:",
-      "  ${2:production}",
-      "   { $$ = ${3:action}; }",
+      "${1:rule_name}:",
+      "  ${2:symbol_sequence}",
+      "  { \\$\\$ = ${3:/* action */}; }",
       ";"
     ]
   },
+
   "Rule Alternative": {
     "prefix": "alt",
-    "description": "Rule alternative",
+    "description": "Additional production alternative for an existing rule. Paste after an existing production line. Each alternative shares the rule's %type.",
     "body": [
-      "| ${1:production}",
-      "   { $$ = ${2:action}; }"
+      "| ${1:symbol_sequence}",
+      "  { \\$\\$ = ${2:/* action */}; }"
     ]
   },
+
   "Token Declaration": {
     "prefix": "%token",
-    "description": "%token declaration with type and alias",
+    "description": "%token declaration with an optional C/C++ type and a string alias. The type is used with api.value.type variant; the alias enables writing \"token_text\" in rules instead of TOKEN_NAME.",
     "body": [
-      "%token <${1:type}> ${2:NAME} \"${3:alias}\""
+      "%token <${1:type}> ${2:TOKEN_NAME} \"${3:alias}\""
     ]
   },
+
   "Type Declaration": {
     "prefix": "%type",
-    "description": "%type declaration for non-terminals",
+    "description": "%type declaration associates a C/C++ type with one or more non-terminals. Required for every non-terminal when using api.value.type variant.",
     "body": [
       "%type <${1:type}> ${2:nonterminal}"
     ]
   },
+
   "Code Requires Block": {
     "prefix": "%code requires",
-    "description": "%code requires block for declarations",
+    "description": "%code requires is emitted before the YYSTYPE/YYLTYPE definitions, making its content visible to both the parser header and implementation. Use it for AST node types, forward declarations, and headers that token/rule types depend on.",
     "body": [
       "%code requires",
       "{",
       "  #include <${1:header}>",
-      "  $2",
+      "  ${2:// forward declarations}",
       "}"
     ]
   },
+
   "Code Block": {
     "prefix": "%code",
-    "description": "%code block",
+    "description": "%code (no qualifier) is emitted in the parser implementation file after the generated definitions. Use it for #includes that only the parser .cc needs, such as the scanner header or driver header.",
     "body": [
       "%code",
       "{",
-      "  $1",
+      "  ${1:// #include \"scanner.hh\"}",
       "}"
     ]
   },
+
   "Define Directive": {
     "prefix": "%define",
-    "description": "%define variable value",
+    "description": "%define sets a Bison named variable. Pick from the dropdown for common options: api.value.type controls the semantic value union/variant; parse.error verbose/detailed controls error message quality; api.token.constructor enables make_TOKEN() factories.",
     "body": [
-      "%define ${1|api.value.type,api.namespace,api.parser.class,api.token.prefix,api.token.constructor,parse.error,api.filename.type|} ${2:value}"
+      "%define ${1|api.value.type,api.namespace,api.parser.class,api.token.prefix,api.token.constructor,parse.error,api.filename.type,api.push-pull,parse.lac|} ${2:value}"
     ]
   },
+
   "Precedence Left": {
     "prefix": "%left",
-    "description": "Left-associative precedence declaration",
+    "description": "Declares tokens as left-associative and sets their precedence level. Later %left/%right/%nonassoc lines have higher precedence. Used to resolve shift/reduce conflicts in expression grammars.",
     "body": [
-      "%left ${1:symbols}"
+      "%left ${1:TOKEN_OR_CHAR}"
     ]
   },
+
   "Precedence Right": {
     "prefix": "%right",
-    "description": "Right-associative precedence declaration",
+    "description": "Declares tokens as right-associative and sets their precedence level. Use for right-associative operators such as assignment (=) or exponentiation (**). Later declarations have higher precedence.",
     "body": [
-      "%right ${1:symbols}"
+      "%right ${1:TOKEN_OR_CHAR}"
     ]
   },
+
   "Precedence Nonassoc": {
     "prefix": "%nonassoc",
-    "description": "Non-associative precedence declaration",
+    "description": "Declares tokens as non-associative: using them twice in a row at the same level is a syntax error. Use for comparison operators (<, >, ==) that should not chain without parentheses.",
     "body": [
-      "%nonassoc ${1:symbols}"
+      "%nonassoc ${1:TOKEN_OR_CHAR}"
     ]
   },
+
   "Prologue Block": {
     "prefix": "%{",
-    "description": "Prologue code block",
+    "description": "Legacy prologue block: code placed verbatim at the top of the generated .c/.cc file. Prefer %code or %code requires in modern grammars for better scoping control.",
     "body": [
       "%{",
-      "  $1",
+      "  ${1:// #include <stdio.h>}",
       "%}"
     ]
   },
+
   "Empty Alternative": {
     "prefix": "%empty",
-    "description": "Empty production",
+    "description": "Explicit empty production (Bison 3+). Using %empty makes the intentional epsilon production visible to readers and tools, and suppresses the -Wempty-rule warning.",
     "body": [
-      "%empty { $$ = ${1:value}; }"
+      "%empty { \\$\\$ = ${1:/* default value */}; }"
     ]
   },
+
   "Prec Override": {
     "prefix": "%prec",
-    "description": "Precedence override in rule",
+    "description": "%prec overrides the precedence of a rule with that of a named token. Classic use-case: unary minus via %prec UMINUS to give it higher precedence than binary minus.",
     "body": [
       "%prec ${1:TOKEN}"
     ]
@@ -161,7 +174,7 @@
 
   "GLR Grammar Skeleton": {
     "prefix": "glr-skeleton",
-    "description": "Complete Bison GLR grammar with %glr-parser, %define parse.lac, and ambiguous rule example",
+    "description": "Complete Bison GLR grammar: %glr-parser, %define parse.lac full for complete lookahead correction, and an intentionally ambiguous expression rule to illustrate GLR resolution. Use when your language is genuinely ambiguous or hard to refactor into LALR(1).",
     "body": [
       "// -*- C++ -*-",
       "%require \"3.8\"",
@@ -181,7 +194,7 @@
       "%code requires",
       "{",
       "  #include <string>",
-      "  $3",
+      "  ${3:// forward declarations}",
       "}",
       "",
       "%token <int>         INT    \"integer\"",
@@ -195,12 +208,12 @@
       "%%",
       "",
       "$6:",
-      "  $5 { $$ = $1; }",
+      "  $5 { \\$\\$ = \\$1; }",
       ";",
       "",
       "$5:",
-      "  INT             { $$ = $1; }",
-      "| $5 \"+\" $5     { $$ = $1 + $3; }",
+      "  INT             { \\$\\$ = \\$1; }",
+      "| $5 \"+\" $5     { \\$\\$ = \\$1 + \\$3; }",
       ";",
       "",
       "%%",
@@ -208,25 +221,25 @@
       "void",
       "${1}::${2}::error(const location_type& l, const std::string& m)",
       "{",
-      "  std::cerr << l << \": \" << m << std::endl;",
+      "  std::cerr << l << \": \" << m << '\\n';",
       "}"
     ]
   },
 
   "Error Recovery Rule": {
     "prefix": "error-recovery",
-    "description": "Grammar rule with error token for panic-mode error recovery",
+    "description": "Grammar rule with panic-mode error recovery using the built-in error token. When a syntax error occurs inside a statement, Bison discards tokens until it finds the synchronisation character (default ';'), then calls yyerrok to reset the error state.",
     "body": [
       "${1:statement}:",
-      "  ${2:expr} '${3:;}' { $$ = $1; }",
-      "| error '${3}' { yyerrok; $$ = ${4:0}; }",
+      "  ${2:expr} '${3:;}' { \\$\\$ = \\$1; }",
+      "| error '${3}' { yyerrok; \\$\\$ = ${4:/* safe default */}; }",
       ";"
     ]
   },
 
   "Union Declaration": {
     "prefix": "union-decl",
-    "description": "%union with common C types for YYSTYPE",
+    "description": "%union declares the fields of the YYSTYPE semantic-value union for C parsers. Add one field per token/rule type. Prefer api.value.type variant for C++ parsers — it is type-safe and supports non-trivial types.",
     "body": [
       "%union",
       "{",
@@ -237,6 +250,264 @@
       "  unsigned int  uval;   /* unsigned value */",
       "  ${1:/* custom field */}",
       "}"
+    ]
+  },
+
+  "Location Tracking Skeleton": {
+    "prefix": "location-tracking",
+    "description": "Bison grammar with %locations enabled. Shows @$ and @1 for location propagation in rule actions, the location_type fields (begin/end with line/column), and an error() function that prints file:line:column. Use when you need source positions in AST nodes or diagnostics.",
+    "body": [
+      "// -*- C++ -*-",
+      "%require \"3.2\"",
+      "%language \"c++\"",
+      "",
+      "%define api.namespace {${1:parse}}",
+      "%define api.parser.class {${2:parser}}",
+      "%define api.value.type variant",
+      "%define api.token.constructor",
+      "%define parse.error verbose",
+      "",
+      "%locations",
+      "",
+      "%code requires",
+      "{",
+      "  #include <string>",
+      "  ${3:// forward declarations / AST node types}",
+      "}",
+      "",
+      "%code",
+      "{",
+      "  #include \"${4:scanner.hh}\"",
+      "}",
+      "",
+      "%token <int>         INT  \"integer\"",
+      "%token <std::string> ID   \"identifier\"",
+      "%token               END  0 \"end of input\"",
+      "",
+      "%type <${5:int}> ${6:expr}",
+      "",
+      "%start ${7:program}",
+      "",
+      "%%",
+      "",
+      "$7:",
+      "  $6 { \\$\\$ = \\$1; @\\$ = @1; }",
+      ";",
+      "",
+      "$6:",
+      "  INT",
+      "    {",
+      "      \\$\\$ = \\$1;",
+      "      @\\$ = @1;  /* carry the INT token's location */",
+      "    }",
+      "| ID",
+      "    {",
+      "      \\$\\$ = 0;",
+      "      @\\$ = @1;",
+      "    }",
+      "| $6 \"+\" $6",
+      "    {",
+      "      \\$\\$ = \\$1 + \\$3;",
+      "      @\\$.begin = @1.begin;  /* span from first to last */",
+      "      @\\$.end   = @3.end;",
+      "    }",
+      ";",
+      "",
+      "%%",
+      "",
+      "void",
+      "${1}::${2}::error(const location_type& loc, const std::string& msg)",
+      "{",
+      "  // loc.begin / loc.end each have .filename, .line, .column",
+      "  std::cerr << *loc.begin.filename << ':'",
+      "            << loc.begin.line << ':' << loc.begin.column",
+      "            << \": error: \" << msg << '\\n';",
+      "}"
+    ]
+  },
+
+  "Variant Type Skeleton": {
+    "prefix": "variant-skeleton",
+    "description": "C++ Bison grammar focused on the api.value.type variant pattern: multiple typed tokens (int, double, string), token constructors via api.token.constructor, unary minus with %prec UMINUS, and a complete expression grammar. Contrast with bison-skeleton (which also adds %locations) — use this when you want to study or teach the variant type system specifically.",
+    "body": [
+      "// -*- C++ -*-",
+      "%require \"3.2\"",
+      "%language \"c++\"",
+      "",
+      "%define api.namespace {${1:parse}}",
+      "%define api.parser.class {${2:parser}}",
+      "%define api.value.type variant",
+      "%define api.token.constructor",
+      "%define parse.error verbose",
+      "",
+      "%code requires",
+      "{",
+      "  #include <string>",
+      "  ${3:// forward declarations}",
+      "}",
+      "",
+      "%code",
+      "{",
+      "  #include \"${4:scanner.hh}\"",
+      "}",
+      "",
+      "/* --- Token declarations --- */",
+      "%token <int>         INT    \"integer\"",
+      "%token <double>      FLOAT  \"float\"",
+      "%token <std::string> ID     \"identifier\"",
+      "%token               PLUS   \"+\"",
+      "%token               MINUS  \"-\"",
+      "%token               STAR   \"*\"",
+      "%token               SLASH  \"/\"",
+      "%token               LPAREN \"(\"",
+      "%token               RPAREN \")\"",
+      "%token               SEMI   \";\"",
+      "%token               END  0 \"end of input\"",
+      "",
+      "/* --- Precedence: lowest to highest --- */",
+      "%left  \"+\" \"-\"",
+      "%left  \"*\" \"/\"",
+      "%right UMINUS",
+      "",
+      "/* --- Non-terminal types --- */",
+      "%type <${5:double}> ${6:expr}",
+      "",
+      "%start ${7:program}",
+      "",
+      "%%",
+      "",
+      "$7:",
+      "  $6 SEMI { /* result: \\$1 */ }",
+      "| $7 $6 SEMI",
+      ";",
+      "",
+      "$6:",
+      "  INT              { \\$\\$ = static_cast<$5>(\\$1); }",
+      "| FLOAT            { \\$\\$ = \\$1; }",
+      "| $6 \"+\" $6      { \\$\\$ = \\$1 + \\$3; }",
+      "| $6 \"-\" $6      { \\$\\$ = \\$1 - \\$3; }",
+      "| $6 \"*\" $6      { \\$\\$ = \\$1 * \\$3; }",
+      "| $6 \"/\" $6      { \\$\\$ = \\$1 / \\$3; }",
+      "| \"-\" $6 %prec UMINUS  { \\$\\$ = -\\$2; }",
+      "| \"(\" $6 \")\"    { \\$\\$ = \\$2; }",
+      ";",
+      "",
+      "%%",
+      "",
+      "void",
+      "${1}::${2}::error(const std::string& m)",
+      "{",
+      "  std::cerr << \"parse error: \" << m << '\\n';",
+      "}"
+    ]
+  },
+
+  "Reentrant Parser Skeleton": {
+    "prefix": "reentrant-parser",
+    "description": "Bison parser with %param to inject a driver/context object into the parser and the error() function. Enables thread-safe parsing when paired with a reentrant Flex scanner (%option reentrant bison-bridge). The driver owns the scanner, symbol table, and result.",
+    "body": [
+      "// -*- C++ -*-",
+      "%require \"3.2\"",
+      "%language \"c++\"",
+      "",
+      "%define api.namespace {${1:parse}}",
+      "%define api.parser.class {${2:parser}}",
+      "%define api.value.type variant",
+      "%define api.token.constructor",
+      "%define parse.error verbose",
+      "",
+      "%locations",
+      "",
+      "/* Inject driver reference into parser constructor and yylex */",
+      "%param { ${3:Driver}& ${4:driver} }",
+      "",
+      "%code requires",
+      "{",
+      "  namespace ${1} { class ${3}; }",
+      "}",
+      "",
+      "%code",
+      "{",
+      "  #include \"${5:driver.hh}\"",
+      "}",
+      "",
+      "%token <int>         INT  \"integer\"",
+      "%token <std::string> ID   \"identifier\"",
+      "%token               END  0 \"end of input\"",
+      "",
+      "%type <${6:int}> ${7:expr}",
+      "",
+      "%start ${8:program}",
+      "",
+      "%%",
+      "",
+      "$8:",
+      "  $7 { ${4}.result = \\$1; }",
+      ";",
+      "",
+      "$7:",
+      "  INT { \\$\\$ = \\$1; }",
+      "| ID  { \\$\\$ = ${4}.lookup(\\$1); }",
+      ";",
+      "",
+      "%%",
+      "",
+      "void",
+      "${1}::${2}::error(const location_type& l, const std::string& m)",
+      "{",
+      "  ${4}.error(l, m);",
+      "}"
+    ]
+  },
+
+  "Push Parser Skeleton": {
+    "prefix": "push-parser",
+    "description": "Bison push-mode parser using %define api.push-pull push. Instead of calling yyparse() which drives the scanner, you feed tokens one at a time via yypush_parse(). Ideal for event loops, async I/O, and coroutines. A usage skeleton is included as a comment at the bottom.",
+    "body": [
+      "%require \"3.2\"",
+      "",
+      "%define api.push-pull push",
+      "%define api.prefix {${1:yy}}",
+      "%define parse.error verbose",
+      "",
+      "%code requires",
+      "{",
+      "  #include \"${2:tokens.h}\"",
+      "}",
+      "",
+      "%token <int>  INT  \"integer\"",
+      "%token        END  0 \"end of input\"",
+      "",
+      "%type <int> ${3:expr}",
+      "",
+      "%start ${4:program}",
+      "",
+      "%%",
+      "",
+      "$4:",
+      "  $3 { ${5:/* handle result \\$1 */} }",
+      ";",
+      "",
+      "$3:",
+      "  INT { \\$\\$ = \\$1; }",
+      ";",
+      "",
+      "%%",
+      "",
+      "void ${1}error(const char* msg) { fprintf(stderr, \"%s\\n\", msg); }",
+      "",
+      "/* --- Push-parser driver skeleton ---",
+      " *",
+      " *   ${1}pstate* ps = ${1}pstate_new();",
+      " *   YYSTYPE lval;",
+      " *   int status, token;",
+      " *   do {",
+      " *     token = next_token(&lval);   // your tokeniser",
+      " *     status = ${1}push_parse(ps, token, &lval);",
+      " *   } while (status == YYPUSH_MORE);",
+      " *   ${1}pstate_delete(ps);",
+      " *   return status;  // 0 = success, 1 = syntax error, 2 = OOM",
+      " */"
     ]
   }
 }

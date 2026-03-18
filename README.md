@@ -79,6 +79,46 @@ Ready-to-use templates to speed up your workflow:
 - `string-handler` — String literal handler with escape sequences
 - `rule`, `rule-sc`, `%option`, `%x`, `%top`, `%class`, `eof-handler`
 
+### Code Lens
+
+Reference counts and entry-point indicators appear above every Bison rule and Flex start condition:
+
+- **N reference(s)** — click to open Find All References at that symbol
+- **⬪ entry point** — marks the grammar's start symbol
+
+Toggle with `bisonFlex.enableCodeLens`.
+
+### Document Symbols & Workspace Search
+
+- **Outline** (`Ctrl+Shift+O`): collapsible tree of declarations, rules, and epilogue for Bison; definitions, patterns, and user code for Flex
+- **Workspace Symbols** (`Ctrl+T`): fuzzy search across all open Bison and Flex files — tokens, rules, start conditions, abbreviations
+
+### Inlay Hints
+
+Inline type annotations for `$$`, `$1`, `@$`, etc. resolved from `%type` and `%token` declarations. Toggle with `bisonFlex.showInlayHints`.
+
+### CMake Integration
+
+The extension detects `CMakeLists.txt` files up to 6 directories above the current file:
+
+- **Diagnostic warning** when a `.y`/`.l` file has no `BISON_TARGET`/`FLEX_TARGET` referencing it
+- **Bison/Flex: Add CMake Target** command — appends the correct CMake snippet automatically
+
+Toggle with `bisonFlex.enableCmakeDiagnostics`.
+
+### Grammar Tools
+
+- **Bison: Show Grammar Graph** — interactive D3.js force-directed graph of the grammar; click a node to navigate to the rule; left/right recursive rules highlighted
+- **Bison: Show Parse Table** — displays the Bison `.output` parse table in a side panel
+- **Bison: Explain Conflict** — detailed shift/reduce conflict analysis with derivations and fix suggestions
+- **Bison: Generate AST Skeleton** — generates a complete C++ AST header with visitor pattern
+- **Flex: Test Rule** — interactive regex tester for the pattern on the current line
+
+### Compile Integration
+
+- **Bison: Compile** / **Flex: Compile** — run the compiler on the current file and surface errors as VS Code diagnostics
+- **Bison/Flex: Initialize tasks.json** — auto-generates `.vscode/tasks.json` with problem matchers; detects CMake and Makefile projects
+
 ---
 
 ## Screenshots
@@ -118,7 +158,7 @@ Search for **"Bison/Flex Language Support"** in the VS Code Extensions panel (`C
 ### From VSIX
 
 ```bash
-code --install-extension bison-flex-lang-1.0.0.vsix
+code --install-extension bison-flex-lang-1.1.0.vsix
 ```
 
 ### From Source
@@ -142,6 +182,9 @@ Then press `F5` in VS Code to launch the Extension Development Host.
 | `bisonFlex.maxDiagnostics` | `number` | `100` | Maximum number of diagnostics per file |
 | `bisonFlex.bisonPath` | `string` | `"bison"` | Path to the Bison executable (must be in PATH or absolute) |
 | `bisonFlex.flexPath` | `string` | `"flex"` | Path to the Flex executable (must be in PATH or absolute) |
+| `bisonFlex.showInlayHints` | `boolean` | `true` | Show inline type hints for `$$`/`$1`/`@$` semantic values |
+| `bisonFlex.enableCodeLens` | `boolean` | `true` | Show reference counts and entry-point badges above rules |
+| `bisonFlex.enableCmakeDiagnostics` | `boolean` | `true` | Warn when a `.y`/`.l` file is not referenced in `CMakeLists.txt` |
 
 ---
 

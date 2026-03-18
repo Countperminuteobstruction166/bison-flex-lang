@@ -28,6 +28,7 @@ export interface DefineDeclaration {
 export interface PrecedenceDeclaration {
   kind: 'left' | 'right' | 'nonassoc' | 'precedence';
   symbols: string[];
+  symbolRanges: Range[];  // per-symbol ranges for rename/references support
   location: Range;
 }
 
@@ -36,10 +37,20 @@ export interface CodeBlock {
   range: Range;
 }
 
+/** A $n reference found inside an inline action block. */
+export interface DollarRef {
+  n: number;    // the index used (e.g., 3 for $3)
+  range: Range;
+}
+
 export interface RuleAlternative {
   range: Range;
   firstSymbol?: string;  // first terminal/non-terminal of this production (for conflict detection)
   symbols: string[];     // ordered list of all grammar symbols in this production
+  dollarRefs?: DollarRef[];       // $n references found in the inline action of this alternative
+  hasExplicitEmpty?: boolean;     // true when %empty was written explicitly in the RHS
+  hasPrec?: boolean;              // true when %prec TOKEN is present in the RHS
+  precToken?: string;             // the symbol name following %prec, if any
 }
 
 export interface RuleDefinition {
@@ -57,8 +68,10 @@ export interface BisonDocument {
   rules: Map<string, RuleDefinition>;
   separators: number[];  // line numbers of %%
   startSymbol?: string;
+  startSymbolLocation?: Range;   // location of the symbol name in %start
   ruleReferences: Map<string, Range[]>;  // symbol name -> locations used in rules RHS
   unknownDirectives: UnknownDirective[];
+  duplicateRules: Array<{ name: string; location: Range }>;  // rules defined more than once
 }
 
 export interface FlexOption {
