@@ -12,9 +12,23 @@ import {
  * Anything starting with % that isn't in this set → unknown directive diagnostic.
  */
 const KNOWN_FLEX_DIRECTIVES = new Set([
+  // Standard Flex directives
   'option', 'x', 's',
-  'top', 'class',           // RE-flex extensions
   'pointer', 'array',       // old Flex memory model
+  // RE-flex block directives (content is treated as embedded C++)
+  'top', 'class',
+  // RE-flex standalone directives (equivalents of %option name=value)
+  'namespace',              // %namespace foo  →  %option namespace=foo
+  'lexer',                  // %lexer ClassName
+  'lex',                    // %lex name
+  'exception',              // %exception type
+  'flex',                   // %flex (enable Flex compatibility)
+  'graphs-file',            // %graphs-file
+  'header-file',            // %header-file "name"
+  'regexp-file',            // %regexp-file
+  'tabs',                   // %tabs n
+  'unicode',                // %unicode
+  'yywrap',                 // %yywrap (use yywrap() callback)
 ]);
 
 /**
@@ -196,9 +210,9 @@ export function parseFlexDocument(text: string): FlexDocument {
       if (trimmed.includes('*/')) inBlockComment = false;
       continue;
     }
-    if (trimmed.startsWith('/*') && !trimmed.includes('*/')) {
-      inBlockComment = true;
-      continue;
+    if (trimmed.startsWith('/*')) {
+      if (!trimmed.includes('*/')) inBlockComment = true;
+      continue; // skip both single-line /* ... */ and multi-line start
     }
 
     // Skip empty lines and line comments
