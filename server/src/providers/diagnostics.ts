@@ -28,8 +28,22 @@ export function computeBisonDiagnostics(doc: BisonDocument, text: string): Diagn
 
   // 2. Check for tokens used in rules but not declared
   // ALL_CAPS identifiers in rules that are not in %token
+  // Build a set of all precedence-declared symbols (e.g. UMINUS declared with %nonassoc).
+  // These are legitimate grammar symbols even without a %token declaration.
+  const precDeclaredSymbols = new Set<string>();
+  for (const prec of doc.precedence) {
+    for (const sym of prec.symbols) precDeclaredSymbols.add(sym);
+  }
+
   for (const [name, refs] of doc.ruleReferences) {
+    // String-literal placeholders (e.g. __s2b__ for "+") are internal artifacts;
+    // they are all lowercase so they fail the all-caps check below, but guard
+    // explicitly for clarity.
+    if (name.startsWith('__s') && name.endsWith('__')) continue;
     if (/^[A-Z_][A-Z0-9_]+$/.test(name) && !doc.tokens.has(name)) {
+      // Tokens declared only via %left/%right/%nonassoc/%precedence are valid
+      // grammar symbols even without %token.  They appear in %prec clauses.
+      if (precDeclaredSymbols.has(name)) continue;
       // Skip known keywords, special identifiers, and Yacc C-macro names that
       // may appear inside action blocks but look like ALL_CAPS tokens.
       const bisonKeywords = new Set([
@@ -118,8 +132,15 @@ export function computeBisonDiagnostics(doc: BisonDocument, text: string): Diagn
   }
 
   // ── TASK 3: Unused tokens ────────────────────────────────────────────────────
+  // A token is "used" if its name OR its string alias appears in any rule body.
+  // E.g. `%token AND "&"` is used when the rule body contains `"&"`.
   for (const [name, decl] of doc.tokens) {
-    if (!doc.ruleReferences.has(name)) {
+    // EOF (value 0) is Bison's internal end-of-input token.  It is consumed
+    // automatically by the parser and never appears explicitly in rule bodies.
+    if (decl.value === 0 || name === 'EOF' || name === 'YYEOF') continue;
+    const usedByName  = doc.ruleReferences.has(name);
+    const usedByAlias = decl.alias !== undefined && doc.ruleReferences.has(decl.alias);
+    if (!usedByName && !usedByAlias) {
       diagnostics.push({
         severity: DiagnosticSeverity.Warning,
         range: decl.location,
@@ -131,8 +152,11 @@ export function computeBisonDiagnostics(doc: BisonDocument, text: string): Diagn
 
   // ── TASK 4: Obvious shift/reduce conflicts ───────────────────────────────────
   // Heuristic: same terminal token appears as first symbol in ≥2 alternatives
-  // of the same rule. Suppressed when the token already has an explicit
-  // %left / %right / %nonassoc declaration (Bison resolves the conflict itself).
+  // of the same rule. Suppressed when:
+  //   (a) the token already has %left/%right/%nonassoc, OR
+  //   (b) every alternative sharing that first token has a DISTINCT second symbol
+  //       (e.g. ID "(" vs ID "{" vs ID "[" — the parser resolves by 1-token
+  //       lookahead without any conflict).
   {
     const declaredPrecTokens = new Set<string>();
     for (const prec of doc.precedence) {
@@ -142,24 +166,34 @@ export function computeBisonDiagnostics(doc: BisonDocument, text: string): Diagn
     }
 
     for (const [name, rule] of doc.rules) {
-      // Count how many alternatives start with each terminal (ALL_CAPS)
-      const firstTerminalCount = new Map<string, number>();
+      // Map: first terminal → list of second symbols of those alternatives.
+      // `undefined` means the alternative has only 1 symbol (pure reduce).
+      const firstToSeconds = new Map<string, Array<string | undefined>>();
       for (const alt of rule.alternatives) {
         const sym = alt.firstSymbol;
         if (sym && /^[A-Z_][A-Z0-9_]*$/.test(sym) && doc.tokens.has(sym)) {
-          firstTerminalCount.set(sym, (firstTerminalCount.get(sym) ?? 0) + 1);
+          if (!firstToSeconds.has(sym)) firstToSeconds.set(sym, []);
+          firstToSeconds.get(sym)!.push(alt.symbols[1]);
         }
       }
-      for (const [token, count] of firstTerminalCount) {
-        // Only warn when no %left/%right/%nonassoc covers this token
-        if (count >= 2 && !declaredPrecTokens.has(token)) {
-          diagnostics.push({
-            severity: DiagnosticSeverity.Warning,
-            range: rule.location,
-            message: `Potential shift/reduce conflict in rule '${name}': token '${token}' starts ${count} alternatives without precedence disambiguation (%prec / %left / %right).`,
-            source: 'bison',
-          });
-        }
+
+      for (const [token, seconds] of firstToSeconds) {
+        if (seconds.length < 2) continue;
+        // Suppressed when %left/%right/%nonassoc covers this token
+        if (declaredPrecTokens.has(token)) continue;
+        // Suppressed when every alt has a DISTINCT non-undefined second symbol:
+        // the grammar is unambiguous with 1-token lookahead at position 2.
+        const defined = seconds.filter((s): s is string => s !== undefined);
+        const allDistinctDefined = defined.length === seconds.length
+          && new Set(defined).size === defined.length;
+        if (allDistinctDefined) continue;
+
+        diagnostics.push({
+          severity: DiagnosticSeverity.Warning,
+          range: rule.location,
+          message: `Potential shift/reduce conflict in rule '${name}': token '${token}' starts ${seconds.length} alternatives without precedence disambiguation (%prec / %left / %right).`,
+          source: 'bison',
+        });
       }
     }
   }
@@ -377,16 +411,8 @@ function computeYaccLegacyHints(lines: string[]): Diagnostic[] {
       message:
         "Yacc legacy '%binary': use '%nonassoc' instead (standard Bison / POSIX Yacc).",
     },
-    {
-      re: /^\s*%lex[_-]param\b/,
-      message:
-        "Yacc legacy '%lex-param': migrate to '%define api.pure full' and use '%lex-param {{type} {name}}' (Bison 3.x).",
-    },
-    {
-      re: /^\s*%parse[_-]param\b/,
-      message:
-        "Yacc legacy '%parse-param': migrate to '%param {{type} {name}}' (Bison 3.x).",
-    },
+    // Note: %lex-param and %parse-param are valid Bison 3.x directives (not Yacc legacy).
+    // %param is a newer combined form but both forms are fully supported; no migration hint.
   ];
 
   for (let i = 0; i < lines.length; i++) {
@@ -534,9 +560,25 @@ export function computeFlexDiagnostics(doc: FlexDocument, text: string): Diagnos
   const rawPattern = (pattern: string): string => {
     // Remove optional <SC> or <SC1,SC2> prefix
     let p = pattern.replace(/^<[A-Z_*][A-Z0-9_,*]*>\s*/, '').trimStart();
-    // The pattern is the first "word" — Flex patterns have no unescaped spaces
-    const m = p.match(/^(\S+)/);
-    return m ? m[1] : p;
+    // Extract the pattern token, tracking [] bracket depth so spaces inside
+    // character classes (e.g. "[ \t\n]") are included, not treated as delimiters.
+    // Backslash-escape handling: \X consumes both chars as a unit.
+    let result = '';
+    let depth = 0;
+    for (let i = 0; i < p.length; i++) {
+      const ch = p[i];
+      if (ch === '\\') {
+        // Escaped char: consume both as-is (e.g. "\[" or "\\")
+        result += ch + (p[i + 1] ?? '');
+        i++;
+        continue;
+      }
+      if (ch === '[') { depth++; result += ch; continue; }
+      if (ch === ']' && depth > 0) { depth--; result += ch; continue; }
+      if ((ch === ' ' || ch === '\t') && depth === 0) break;
+      result += ch;
+    }
+    return result || p;
   };
 
   // Catch-all patterns that would shadow everything after them
@@ -555,7 +597,8 @@ export function computeFlexDiagnostics(doc: FlexDocument, text: string): Diagnos
     const dupKey = `${ctx}|${pat}`;
 
     // Heuristic B: is this rule after a catch-all in the same context?
-    if (catchallLine.has(ctx) && !CATCHALL_PATTERNS.has(pat)) {
+    // <<EOF>> is never shadowed by a regular catch-all (`.` doesn't match EOF).
+    if (catchallLine.has(ctx) && !CATCHALL_PATTERNS.has(pat) && pat !== '<<EOF>>') {
       const catchLine = catchallLine.get(ctx)!;
       diagnostics.push({
         severity: DiagnosticSeverity.Warning,
@@ -680,7 +723,14 @@ export function computeFlexDiagnostics(doc: FlexDocument, text: string): Diagnos
   }
 
   // ── NEW 7: Missing %option noyywrap ─────────────────────────────────────────
-  if (!doc.options.has('noyywrap')) {
+  // Skip this check for RE-flex files: RE-flex handles end-of-file through the
+  // scanner base class and doesn't require noyywrap.  Detect RE-flex by the
+  // presence of RE-flex-specific options (bison-complete, bison-cc-parser,
+  // namespace, lexer) or by an explicit %option yywrap.
+  const isReflex = doc.options.has('bison-complete') || doc.options.has('bison-cc-parser')
+    || doc.options.has('bison-locations') || doc.options.has('namespace')
+    || doc.options.has('lexer') || doc.options.has('unicode') || doc.options.has('yywrap');
+  if (!isReflex && !doc.options.has('noyywrap')) {
     const hasYywrap = text.includes('yywrap');
     if (!hasYywrap) {
       diagnostics.push({

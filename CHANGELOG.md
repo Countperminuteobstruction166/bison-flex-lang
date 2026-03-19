@@ -2,6 +2,40 @@
 
 All notable changes to the **Bison/Flex Language Support** extension will be documented in this file.
 
+## [1.1.1] - 2026-03-19
+
+### Fixed
+
+- **Bison — token aliases**: Tokens declared with a string alias (e.g. `%token LBRACE "{"`)
+  are no longer falsely reported as unused when the alias form is used in rules
+- **Bison — `$N` out-of-bounds**: String literal tokens (e.g. `"-"` in `"-" exp`) are now
+  counted as positional symbols, eliminating false `$2 is out of bounds` errors
+- **Bison — shift/reduce false positive**: The S/R heuristic now suppresses warnings when
+  all alternatives sharing a first token have distinct second tokens (e.g. `ID "("`,
+  `ID "{"`, `ID "["` in expression rules)
+- **Bison — `UMINUS` / precedence tokens**: Tokens declared only via `%left`/`%right`/
+  `%nonassoc` are no longer reported as undeclared
+- **Bison — EOF token**: The end-of-input token (value 0) is no longer reported as unused
+- **Bison — `%token` after `%%`**: Token declarations appearing in the rules section
+  (valid Bison syntax) are now correctly registered
+- **Flex — `/* comment */` in rules section**: Single-line block comments in the rules
+  section were incorrectly parsed as Flex rules, producing false duplicate-pattern warnings
+- **Flex — `rawPattern` with spaces in character classes**: Patterns like `\\[ \t\n]+\\`
+  were truncated at the space inside `[...]`, producing false "invalid regex" errors
+- **Flex — RE-flex directives**: `%namespace`, `%lexer`, `%lex`, `%unicode`, and other
+  RE-flex-specific directives no longer trigger "unknown directive" errors
+- **Flex — RE-flex `noyywrap`**: RE-flex files no longer trigger the missing `noyywrap` warning
+- **Flex — `<SC><<EOF>>`**: EOF rules after a catch-all pattern are no longer flagged
+  as inaccessible
+- **Security**: `.env` file excluded from packaged VSIX (was inadvertently included)
+
+### Added
+
+- Hover and completion documentation for RE-flex built-in methods:
+  `size()`, `lineno()`, `columno()`, `in()`, `out()`
+
+---
+
 ## [1.1.0] - 2026-03-18
 
 ### Added

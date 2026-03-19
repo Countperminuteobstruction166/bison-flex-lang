@@ -227,6 +227,14 @@ export function parseBisonDocument(text: string): BisonDocument {
     // Skip empty lines and comments
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*')) continue;
 
+    // %token directive inside the rules section (Bison allows declaring tokens after %%).
+    // Must be handled BEFORE rule-body processing to avoid contaminating rule symbols.
+    if (trimmed.startsWith('%token') && braceDepth === 0) {
+      const tm = trimmed.match(/^%token(?:\s+<([^>]+)>)?\s+(.+)/);
+      if (tm) parseTokenNames(tm[2], tm[1], i, doc);
+      continue;
+    }
+
     // Inside a multi-line action block: scan for $n refs and track brace depth.
     if (braceDepth > 0) {
       if (currentRule) {
@@ -325,34 +333,52 @@ export function parseBisonDocument(text: string): BisonDocument {
       if (ch === '{') braceDepth++;
       if (ch === '}') braceDepth = Math.max(0, braceDepth - 1);
     }
-
-    // %token directive in rules section (e.g., %token CHUNKS "_chunks")
-    const inlineTokenMatch = trimmed.match(/^%token\s+([A-Z_][A-Z0-9_]*)\s*(".*")?/);
-    if (inlineTokenMatch) {
-      const name = inlineTokenMatch[1];
-      const alias = inlineTokenMatch[2]?.replace(/"/g, '');
-      const col = line.indexOf(name);
-      doc.tokens.set(name, {
-        name,
-        alias,
-        location: Range.create(i, col, i, col + name.length),
-      });
-    }
   }
 
   return doc;
 }
 
 /**
+ * Encode a Bison string literal (the quoted content) into a unique, safe
+ * identifier-like placeholder.  The hex encoding ensures that "+" and "{"
+ * produce DIFFERENT placeholders — critical for second-token disambiguation
+ * in the shift/reduce heuristic.
+ *
+ * e.g.  "+"  →  __s2b__
+ *        "("  →  __s28__
+ *        "{"  →  __s7b__
+ *        "function"  →  __s66756e6374696f6e__
+ *
+ * All placeholders start with "__s" (lowercase) so they are valid identifiers
+ * but FAIL the all-caps token check -- never mistaken for grammar terminals.
+ */
+function strLiteralPlaceholder(content: string): string {
+  const hex = Array.from(content)
+    .map(c => c.charCodeAt(0).toString(16).padStart(2, '0'))
+    .join('');
+  return `__s${hex}__`;
+}
+
+/** Replace every `"..."` in `text` with its unique strLiteralPlaceholder. */
+function replaceStringLiterals(text: string): string {
+  return text.replace(/"((?:[^"\\]|\\.)*)"/g, (_, content) => ` ${strLiteralPlaceholder(content)} `);
+}
+
+/**
  * Extract all grammar symbols (identifiers) from a production RHS in order.
+ *
+ * String literals ("+" , "{", "function", …) ARE counted as symbols because
+ * Bison treats them exactly like tokens in the $N position numbering.
+ * They are replaced with unique hex-encoded placeholders so that the
+ * second-symbol disambiguation in the shift/reduce heuristic can tell
+ * `"("` apart from `"{"` (both have different placeholders).
  */
 function extractSymbols(text: string): string[] {
-  const cleaned = text
-    .replace(/"(?:[^"\\]|\\.)*"/g, ' ')    // remove strings
-    .replace(/\{[^}]*\}/g, ' ')            // remove inline actions
-    .replace(/%prec\s+\S+/g, ' ')          // remove %prec TOKEN
-    .replace(/%empty/g, ' ')               // remove %empty
-    .replace(/\/\/.*$/g, ' ')              // remove line comments
+  const cleaned = replaceStringLiterals(text)
+    .replace(/\{[^}]*\}/g, ' ')                   // remove inline actions
+    .replace(/%prec\s+\S+/g, ' ')                 // remove %prec TOKEN
+    .replace(/%empty/g, ' ')                      // remove %empty
+    .replace(/\/\/.*$/g, ' ')                     // remove line comments
     .trim();
   const symbols: string[] = [];
   const regex = /\b([a-zA-Z_][a-zA-Z0-9_.]*)\b/g;
@@ -366,14 +392,17 @@ function extractSymbols(text: string): string[] {
 /**
  * Extract the first terminal or non-terminal symbol from a production RHS.
  * Returns undefined for empty productions (%empty) or pure action blocks.
+ *
+ * String literals are replaced with unique hex-encoded placeholders so that
+ * an alternative starting with "function" has a firstSymbol starting with
+ * `__s` (not all-caps) and is therefore not confused with a real terminal.
  */
 function getFirstSymbol(text: string): string | undefined {
-  const cleaned = text
-    .replace(/"(?:[^"\\]|\\.)*"/g, ' ')    // remove strings
-    .replace(/\{[^}]*\}/g, ' ')            // remove inline actions
-    .replace(/%prec\s+\S+/g, ' ')          // remove %prec TOKEN
-    .replace(/%empty/g, ' ')               // remove %empty
-    .replace(/\/\/.*$/g, ' ')             // remove line comments
+  const cleaned = replaceStringLiterals(text)
+    .replace(/\{[^}]*\}/g, ' ')                   // remove inline actions
+    .replace(/%prec\s+\S+/g, ' ')                 // remove %prec TOKEN
+    .replace(/%empty/g, ' ')                      // remove %empty
+    .replace(/\/\/.*$/g, ' ')                     // remove line comments
     .trim();
   const m = cleaned.match(/^([a-zA-Z_][a-zA-Z0-9_.]*)/);
   return m ? m[1] : undefined;
@@ -427,6 +456,38 @@ function extractDollarRefs(text: string, lineNum: number, fullLine: string): Dol
 }
 
 function extractRuleReferences(text: string, lineNum: number, fullLine: string, doc: BisonDocument): void {
+  // Track string literals used as token aliases in rule bodies (e.g. "+" instead of PLUS,
+  // "{" instead of LBRACE).  We use a char-by-char scanner so that:
+  //   • `"{"` at brace-depth 0 → alias `{`  (rule body)
+  //   • `"{"` inside `{ std::string s = "{"; }` → ignored (brace-depth > 0, action block)
+  {
+    let braceDepth = 0;
+    let inString = false;
+    let strStart = -1;
+    for (let ci = 0; ci < text.length; ci++) {
+      const ch = text[ci];
+      if (inString) {
+        if (ch === '\\') { ci++; continue; }          // escape: skip next char
+        if (ch === '"') {
+          const alias = text.substring(strStart, ci); // content between quotes
+          if (alias) {
+            const rawStr = '"' + alias + '"';
+            const col = fullLine.indexOf(rawStr);
+            if (!doc.ruleReferences.has(alias)) doc.ruleReferences.set(alias, []);
+            doc.ruleReferences.get(alias)!.push(
+              Range.create(lineNum, col >= 0 ? col : 0, lineNum, (col >= 0 ? col : 0) + rawStr.length),
+            );
+          }
+          inString = false;
+        }
+      } else {
+        if (ch === '{') { braceDepth++; }
+        else if (ch === '}') { braceDepth = Math.max(0, braceDepth - 1); }
+        else if (ch === '"' && braceDepth === 0) { inString = true; strStart = ci + 1; }
+      }
+    }
+  }
+
   // Find identifiers in rule bodies (potential token/nonterminal references)
   // Skip: strings, actions (braces), %prec keyword (but keep its token), %empty, comments
   const cleaned = text

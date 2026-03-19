@@ -22,3 +22,5 @@ tsconfig.base.json
 package-lock.json
 *.vsix
 .gitattributes
+.env
+.env.*
