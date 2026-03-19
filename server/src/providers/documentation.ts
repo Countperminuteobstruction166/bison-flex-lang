@@ -656,4 +656,37 @@ export const flexBuiltinDocs: Map<string, DocEntry> = new Map([
     commonErrors: 'Forgetting an `<<EOF>>` rule for exclusive states — Flex calls `yywrap()` instead of running the default action, which may silently swallow the error.',
     docUrl: 'https://westes.github.io/flex/manual/EOF.html',
   }],
+  // ── RE-flex method equivalents ──
+  ['size', {
+    signature: 'size()',
+    description: '(RE-flex) Returns the length (in bytes) of the current match. Equivalent to `yyleng` in classic Flex.',
+    example: 'return parser::make_STRING(std::string(text(), size()), location());',
+    commonErrors: 'Using `yyleng` in RE-flex scanner code — prefer `size()` for the RE-flex C++ API.',
+    docUrl: 'https://github.com/Genivia/RE-flex',
+  }],
+  ['lineno', {
+    signature: 'lineno()',
+    description: '(RE-flex) Returns the current line number (1-based). Equivalent to `yylineno` in classic Flex. Updated automatically when `%option yylineno` (or equivalent) is active.',
+    example: 'std::cerr << "error at line " << lineno() << "\\n";',
+    commonErrors: 'Using `yylineno` in RE-flex code — use `lineno()` instead for the RE-flex API.',
+    docUrl: 'https://github.com/Genivia/RE-flex',
+  }],
+  ['columno', {
+    signature: 'columno()',
+    description: '(RE-flex) Returns the current column number (0-based) within the current line. Not available in classic Flex.',
+    example: 'loc.begin.column = columno();',
+    docUrl: 'https://github.com/Genivia/RE-flex',
+  }],
+  ['in', {
+    signature: 'in()',
+    description: '(RE-flex) Returns a reference to the input stream used by the scanner. Allows switching the input source programmatically.',
+    example: 'in(new_stream);',
+    docUrl: 'https://github.com/Genivia/RE-flex',
+  }],
+  ['out', {
+    signature: 'out()',
+    description: '(RE-flex) Returns a reference to the output stream used by the scanner (for ECHO and similar actions).',
+    example: 'out() << "matched: " << text() << "\\n";',
+    docUrl: 'https://github.com/Genivia/RE-flex',
+  }],
 ]);
