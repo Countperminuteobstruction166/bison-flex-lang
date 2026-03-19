@@ -1507,6 +1507,338 @@ console.log('\n\n=== TEST: Flex %option stack unused ===\n');
 }
 
 // ════════════════════════════════════════
+// TEST: P1 — Token alias used in rules
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: P1 — Token alias usage ===\n');
+
+{
+  // AND declared with alias "&", used via alias in rules → must NOT be "unused"
+  const src = [
+    '%token AND "&"',
+    '%token OR  "|"',
+    '%%',
+    'start : expr ;',
+    'expr  : expr "&" expr | expr "|" expr | "a" ;',
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(src);
+  assert(doc.tokens.has('AND'), 'AND token registered');
+  assert(doc.tokens.get('AND')?.alias === '&', 'AND alias is "&"');
+  // ruleReferences should contain "&" and "|" (unquoted aliases)
+  assert(doc.ruleReferences.has('&'), 'Alias "&" tracked in ruleReferences');
+  assert(doc.ruleReferences.has('|'), 'Alias "|" tracked in ruleReferences');
+
+  const diags = computeBisonDiagnostics(doc, src);
+  const unusedAnd = diags.find(d => d.message.includes("'AND'") && d.message.includes('never used'));
+  const unusedOr  = diags.find(d => d.message.includes("'OR'")  && d.message.includes('never used'));
+  assert(unusedAnd === undefined, 'No false "AND unused" warning when alias "&" is used');
+  assert(unusedOr  === undefined, 'No false "OR unused" warning when alias "|" is used');
+}
+
+// ════════════════════════════════════════
+// TEST: P2 — %token declared after %%
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: P2 — %%token after %% ===\n');
+
+{
+  const src = [
+    '%token KNOWN "k"',
+    '%%',
+    '%token CHUNKS "_chunks"',
+    'start : KNOWN CHUNKS ;',
+    '%token EXP_META "_exp"',
+    'extra : EXP_META ;',
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(src);
+  assert(doc.tokens.has('CHUNKS'),   '%token CHUNKS registered after %%');
+  assert(doc.tokens.has('EXP_META'), '%token EXP_META registered after %%');
+  assert(doc.tokens.get('CHUNKS')?.alias   === '_chunks', 'CHUNKS alias is "_chunks"');
+  assert(doc.tokens.get('EXP_META')?.alias === '_exp',    'EXP_META alias is "_exp"');
+
+  const diags = computeBisonDiagnostics(doc, src);
+  const unusedChunks  = diags.find(d => d.message.includes("'CHUNKS'") && d.message.includes('never used'));
+  const unusedExpMeta = diags.find(d => d.message.includes("'EXP_META'") && d.message.includes('never used'));
+  assert(unusedChunks  === undefined, 'No false "CHUNKS unused" warning');
+  assert(unusedExpMeta === undefined, 'No false "EXP_META unused" warning');
+}
+
+// ════════════════════════════════════════
+// TEST: P3 — %parse-param / %lex-param not legacy
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: P3 — %parse-param not legacy ===\n');
+
+{
+  const src = [
+    '%token ID',
+    '%parse-param { TigerDriver& drv }',
+    '%lex-param   { TigerDriver& drv }',
+    '%%',
+    'start : ID ;',
+    '%%',
+  ].join('\n');
+
+  const doc = parseBisonDocument(src);
+  const diags = computeBisonDiagnostics(doc, src);
+  const legacyParse = diags.find(d => d.source === 'bison-yacc-compat' && d.message.includes('parse-param'));
+  const legacyLex   = diags.find(d => d.source === 'bison-yacc-compat' && d.message.includes('lex-param'));
+  assert(legacyParse === undefined, 'No Yacc-legacy hint for %parse-param');
+  assert(legacyLex   === undefined, 'No Yacc-legacy hint for %lex-param');
+}
+
+// ════════════════════════════════════════
+// TEST: P4 — RE-flex standalone directives
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: P4 — RE-flex directives ===\n');
+
+{
+  const { parseFlexDocument: pflexReflex } = require('../server/src/parser/flexParser');
+
+  const src = [
+    '%option bison-complete bison-locations',
+    '%namespace parse',
+    '%lexer Lexer',
+    '%lex lex',
+    '%unicode',
+    '%x SC_COMMENT',
+    '%%',
+    '<SC_COMMENT>. ;',
+    '%%',
+  ].join('\n');
+
+  const doc = pflexReflex(src);
+  assert(doc.unknownDirectives.length === 0,
+    `No unknown directive warnings for RE-flex directives (got ${doc.unknownDirectives.length}: ${doc.unknownDirectives.map((d: any) => d.name).join(', ')})`);
+
+  const diags = computeFlexDiagnostics(doc, src);
+  const unknowns = diags.filter((d: any) => d.message.includes('Unknown Flex directive'));
+  assert(unknowns.length === 0, 'No "Unknown Flex directive" errors for RE-flex file');
+}
+
+// ════════════════════════════════════════
+// TEST: P5 — RE-flex noyywrap false positive
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: P5 — RE-flex noyywrap suppression ===\n');
+
+{
+  const { parseFlexDocument: pflexNw } = require('../server/src/parser/flexParser');
+
+  // RE-flex file without noyywrap — should NOT warn because it uses bison-complete
+  const src = [
+    '%option bison-complete bison-locations',
+    '%option namespace=parse lexer=Lexer lex=lex',
+    '%x SC_COMMENT',
+    '%%',
+    '<SC_COMMENT>. ;',
+    '%%',
+  ].join('\n');
+
+  const doc = pflexNw(src);
+  const diags = computeFlexDiagnostics(doc, src);
+  const noyywrapWarn = diags.find((d: any) => d.message.includes('noyywrap'));
+  assert(noyywrapWarn === undefined, 'No "missing noyywrap" warning for RE-flex file with bison-complete');
+}
+
+// ════════════════════════════════════════
+// TEST: P6 — RE-flex function docs
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: P6 — RE-flex function documentation ===\n');
+
+{
+  assert(flexBuiltinDocs.has('size'),    'flexBuiltinDocs has "size" (RE-flex yyleng equivalent)');
+  assert(flexBuiltinDocs.has('lineno'),  'flexBuiltinDocs has "lineno" (RE-flex yylineno equivalent)');
+  assert(flexBuiltinDocs.has('columno'), 'flexBuiltinDocs has "columno" (RE-flex column accessor)');
+  assert(flexBuiltinDocs.has('in'),      'flexBuiltinDocs has "in" (RE-flex input stream)');
+  assert(flexBuiltinDocs.has('out'),     'flexBuiltinDocs has "out" (RE-flex output stream)');
+  assert(flexBuiltinDocs.has('start'),   'flexBuiltinDocs has "start" (RE-flex BEGIN equivalent)');
+  assert(flexBuiltinDocs.has('text'),    'flexBuiltinDocs has "text" (RE-flex yytext equivalent)');
+}
+
+// ════════════════════════════════════════
+// TEST: P7 — <SC><<EOF>> not inaccessible
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: P7 — <SC><<EOF>> not flagged inaccessible ===\n');
+
+{
+  const { parseFlexDocument: pflexEof } = require('../server/src/parser/flexParser');
+
+  // A catch-all `.` in SC_COMMENT before the <<EOF>> rule must NOT trigger
+  // "inaccessible rule" on the <<EOF>> pattern.
+  const src = [
+    '%option noyywrap',
+    '%x SC_COMMENT SC_STRING',
+    '%%',
+    '<SC_COMMENT>.           { /* skip */ }',
+    '<SC_COMMENT>\\n          { /* skip */ }',
+    '<SC_COMMENT><<EOF>>     { yyerror("unclosed comment"); yyterminate(); }',
+    '<SC_STRING>.            { /* skip */ }',
+    '<SC_STRING><<EOF>>      { yyerror("unclosed string"); yyterminate(); }',
+    '%%',
+  ].join('\n');
+
+  const doc = pflexEof(src);
+  const diags = computeFlexDiagnostics(doc, src);
+  const eofInaccessible = diags.filter((d: any) =>
+    d.message.includes('<<EOF>>') && d.message.includes('inaccessible'));
+  assert(eofInaccessible.length === 0,
+    `No inaccessible-rule warning for <SC><<EOF>> (got ${eofInaccessible.length})`);
+}
+
+// ════════════════════════════════════════
+// TEST: Tiger grammar patterns (parsetiger.yy regressions)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Tiger grammar regressions ===\n');
+
+{
+  // ── Regression 1: string-alias tokens not counted as symbols ($n OOB) ──
+  // `"-" exp %prec UMINUS { ... $2 ... }` must count "-" as symbol $1
+  // so that $2 (exp) is in bounds.
+  const srcUnary = [
+    '%token UMINUS',
+    '%nonassoc UMINUS',
+    '%%',
+    'exp : "-" exp %prec UMINUS { $$ = $2; }',
+    '    | "a" ;',
+    '%%',
+  ].join('\n');
+  const docUnary = parseBisonDocument(srcUnary);
+  const diagsUnary = computeBisonDiagnostics(docUnary, srcUnary);
+  const oobUnary = diagsUnary.filter(d => d.message.includes('out of bounds'));
+  assert(oobUnary.length === 0,
+    `No $n OOB error for '"-" exp %prec UMINUS { $2 }' (got ${oobUnary.map(d => d.message).join('; ')})`);
+
+  // ── Regression 2: "if" exp "then" exp has $2/$4 in bounds ──
+  const srcIf = [
+    '%token THEN ELSE',
+    '%precedence THEN ELSE',
+    '%%',
+    'exp : "if" exp "then" exp %prec THEN { $$ = $4; }',
+    '    | "if" exp "then" exp "else" exp %prec ELSE { $$ = $6; }',
+    '    | "a" ;',
+    '%%',
+  ].join('\n');
+  const docIf = parseBisonDocument(srcIf);
+  const diagsIf = computeBisonDiagnostics(docIf, srcIf);
+  const oobIf = diagsIf.filter(d => d.message.includes('out of bounds'));
+  assert(oobIf.length === 0,
+    `No $n OOB for if-then and if-then-else patterns (got ${oobIf.map(d => d.message).join('; ')})`);
+
+  // ── Regression 3: fundec-style — all alts start with different string literals ──
+  // Must NOT produce a shift/reduce conflict (alts start with "function"/"primitive"/"method")
+  const srcFundec = [
+    '%token ID VARCHUNK TYPEID EXP',
+    '%precedence CHUNKS',
+    '%%',
+    'fundec',
+    '  : "function" ID "(" VARCHUNK ")" ":" TYPEID "=" EXP { $$ = $9; }',
+    '  | "function" ID "(" VARCHUNK ")" "=" EXP             { $$ = $7; }',
+    '  | "primitive" ID "(" VARCHUNK ")" ":" TYPEID         { $$ = $7; }',
+    '  | "primitive" ID "(" VARCHUNK ")"                    { $$ = $4; }',
+    '  | "method" ID "(" VARCHUNK ")" ":" TYPEID "=" EXP   { $$ = $9; }',
+    '  | "method" ID "(" VARCHUNK ")" "=" EXP              { $$ = $7; }',
+    '  ;',
+    '%%',
+  ].join('\n');
+  const docFundec = parseBisonDocument(srcFundec);
+  const diagsFundec = computeBisonDiagnostics(docFundec, srcFundec);
+  const srFundec = diagsFundec.filter(d =>
+    d.message.includes('shift/reduce') && d.message.includes('fundec'));
+  assert(srFundec.length === 0,
+    `No false shift/reduce on fundec (all alts start with distinct strings, got: ${srFundec.map(d => d.message).join('; ')})`);
+
+  // ── Regression 4: tokens used via alias must not be "unused" ──
+  // LBRACE declares alias "{", used in rules as "{"  ← must not be flagged unused
+  const srcBraces = [
+    '%token LBRACE "{"',
+    '%token RBRACE "}"',
+    '%token COLON  ":"',
+    '%token ID TYPEID',
+    '%%',
+    'tyfield : ID ":" TYPEID ;',
+    'ty      : "{" tyfields "}" ;',
+    'tyfields : %empty ;',
+    '%%',
+  ].join('\n');
+  const docBraces = parseBisonDocument(srcBraces);
+  const diagsBraces = computeBisonDiagnostics(docBraces, srcBraces);
+  const unusedLBRACE = diagsBraces.find(d => d.message.includes("'LBRACE'") && d.message.includes('never used'));
+  const unusedRBRACE = diagsBraces.find(d => d.message.includes("'RBRACE'") && d.message.includes('never used'));
+  const unusedCOLON  = diagsBraces.find(d => d.message.includes("'COLON'")  && d.message.includes('never used'));
+  assert(unusedLBRACE === undefined, 'No false "LBRACE unused" when "{" alias is used in rules');
+  assert(unusedRBRACE === undefined, 'No false "RBRACE unused" when "}" alias is used in rules');
+  assert(unusedCOLON  === undefined, 'No false "COLON unused" when ":" alias is used in rules');
+
+  // Also verify alias "{" IS tracked in ruleReferences
+  assert(docBraces.ruleReferences.has('{'), 'Alias "{" tracked in ruleReferences for LBRACE');
+  assert(docBraces.ruleReferences.has('}'), 'Alias "}" tracked in ruleReferences for RBRACE');
+  assert(docBraces.ruleReferences.has(':'), 'Alias ":" tracked in ruleReferences for COLON');
+
+  // ── Regression 5: ID "{" fieldinits "}" — $1/$3 in bounds ──
+  const srcRecord = [
+    '%token ID TYPEID',
+    '%token FIELDINITS',
+    '%%',
+    'exp : ID "{" FIELDINITS "}" { $$ = $3; }',
+    '    | "a" ;',
+    '%%',
+  ].join('\n');
+  const docRecord = parseBisonDocument(srcRecord);
+  const diagsRecord = computeBisonDiagnostics(docRecord, srcRecord);
+  const oobRecord = diagsRecord.filter(d => d.message.includes('out of bounds'));
+  assert(oobRecord.length === 0,
+    `No $n OOB for 'ID "{" FIELDINITS "}" { $3 }' (got ${oobRecord.map(d => d.message).join('; ')})`);
+}
+
+// ════════════════════════════════════════
+// TEST: rawPattern — character class with spaces (\\[ \t\n]+\\)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Flex rawPattern with spaces inside character class ===\n');
+{
+  // Pattern \\[ \t\n]+\\ has a space inside [...], rawPattern must not truncate at the space.
+  // Previously it returned "\\[" which failed regex validation.
+  const src = [
+    '%option noyywrap',
+    '%%',
+    '<SC_STRING>\\\\[ \\t\\n]+\\\\ { /* ignore whitespace gap */ }',
+    '.',
+    '%%',
+  ].join('\n');
+  const docWs = parseFlexDocument(src);
+  const diagsWs = computeFlexDiagnostics(docWs, src);
+  const invalidRegex = diagsWs.filter(d => d.message.includes('Invalid regex pattern'));
+  assert(invalidRegex.length === 0,
+    `No 'Invalid regex pattern' for \\\\[ \\t\\n]+\\\\ pattern (got ${invalidRegex.map(d => d.message).join('; ')})`);
+}
+
+// ════════════════════════════════════════
+// TEST: single-line block comments in Flex rules section not parsed as rules
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: Flex single-line /* */ comments not parsed as rules ===\n');
+{
+  const src = [
+    '%option noyywrap',
+    '%%',
+    '  /* Keywords */',
+    '"if"   { return 1; }',
+    '  /* Operators */',
+    '"+"    { return 2; }',
+    '  /* also a comment */',
+    '"/*"   { return 3; }',
+    '%%',
+  ].join('\n');
+  const docComment = parseFlexDocument(src);
+  const diagsComment = computeFlexDiagnostics(docComment, src);
+  const dupDiags = diagsComment.filter(d => d.message.includes('inaccessible') && d.message.includes('identical'));
+  assert(dupDiags.length === 0,
+    `No false 'identical pattern' from /* */ comments in rules section (got ${dupDiags.map(d => d.message).join('; ')})`);
+  // The only rules should be the actual patterns, not the comments
+  assert(docComment.rules.length === 3,
+    `Exactly 3 rules parsed (not the /* */ comments), got ${docComment.rules.length}`);
+}
+
+// ════════════════════════════════════════
 // SUMMARY
 // ════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);
