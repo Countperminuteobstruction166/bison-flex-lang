@@ -3,3 +3,4 @@ dist/
 client/out/
 server/out/
 *.vsix
+.env
