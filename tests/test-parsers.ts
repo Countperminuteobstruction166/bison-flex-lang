@@ -1839,6 +1839,57 @@ console.log('\n\n=== TEST: Flex single-line /* */ comments not parsed as rules =
 }
 
 // ════════════════════════════════════════
+// TEST: $n with single-quoted and double-quoted literals (issue #4)
+// ════════════════════════════════════════
+console.log('\n\n=== TEST: $n bounds — literals counted as symbols ===\n');
+
+{
+  // rule: A '(' B ')' { $$ = $3; } → 4 symbols, $3 valid → 0 diagnostics
+  const bisonLit = [
+    '%token A B',
+    '%%',
+    'start : rule ;',
+    "rule : A '(' B ')' { $$ = $3; }",
+    '%%',
+  ].join('\n');
+  const docLit = parseBisonDocument(bisonLit);
+  const diagsLit = computeBisonDiagnostics(docLit, bisonLit);
+  const oobLit = diagsLit.filter(d => d.message.includes('out of bounds'));
+  assert(oobLit.length === 0,
+    `Single-quoted literals '(' and ')' are counted as symbols — $3 in A '(' B ')' must not be flagged (got: ${oobLit.map(d => d.message).join('; ')})`);
+
+  // rule: A "and" B "or" C { $$ = $4; } → 5 symbols, $4 valid → 0 diagnostics
+  const bisonAlias = [
+    '%token A B C',
+    '%%',
+    'start : rule ;',
+    'rule : A "and" B "or" C { $$ = $4; }',
+    '%%',
+  ].join('\n');
+  const docAlias = parseBisonDocument(bisonAlias);
+  const diagsAlias = computeBisonDiagnostics(docAlias, bisonAlias);
+  const oobAlias = diagsAlias.filter(d => d.message.includes('out of bounds'));
+  assert(oobAlias.length === 0,
+    `Double-quoted aliases "and" and "or" are counted as symbols — $4 in A "and" B "or" C must not be flagged (got: ${oobAlias.map(d => d.message).join('; ')})`);
+
+  // rule: A B { $$ = $3; } → 2 symbols, $3 out of bounds → 1 Error
+  const bisonOob = [
+    '%token A B',
+    '%%',
+    'start : rule ;',
+    'rule : A B { $$ = $3; }',
+    '%%',
+  ].join('\n');
+  const docOob = parseBisonDocument(bisonOob);
+  const diagsOob = computeBisonDiagnostics(docOob, bisonOob);
+  const oobOob = diagsOob.filter(d => d.message.includes('$3') && d.message.includes('out of bounds'));
+  assert(oobOob.length >= 1,
+    `$3 in a 2-symbol rule A B must be flagged as out of bounds`);
+  assert(oobOob[0]?.severity === 1,
+    `$3 out-of-bounds diagnostic has Error severity`);
+}
+
+// ════════════════════════════════════════
 // SUMMARY
 // ════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);
