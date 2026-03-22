@@ -359,9 +359,15 @@ function strLiteralPlaceholder(content: string): string {
   return `__s${hex}__`;
 }
 
-/** Replace every `"..."` in `text` with its unique strLiteralPlaceholder. */
+/**
+ * Replace every `"..."` and `'...'` in `text` with their unique strLiteralPlaceholder.
+ * Single-quoted character literals like `'('` are included in the content with the
+ * surrounding apostrophes to keep them distinct from double-quoted aliases like `"("`.
+ */
 function replaceStringLiterals(text: string): string {
-  return text.replace(/"((?:[^"\\]|\\.)*)"/g, (_, content) => ` ${strLiteralPlaceholder(content)} `);
+  return text
+    .replace(/"((?:[^"\\]|\\.)*)"/g, (_, content) => ` ${strLiteralPlaceholder(content)} `)
+    .replace(/'((?:[^'\\]|\\.)*)'/g, (_, content) => ` ${strLiteralPlaceholder(`'${content}'`)} `);
 }
 
 /**
