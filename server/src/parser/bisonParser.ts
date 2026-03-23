@@ -35,7 +35,13 @@ const KNOWN_BISON_DIRECTIVES = new Set([
 ]);
 
 export function parseBisonDocument(text: string): BisonDocument {
-  const lines = text.split(/\r?\n/);
+  // Strip /* ... */ block comments (including multi-line) before any line-by-line
+  // processing.  Newlines inside comments are preserved so that all line numbers
+  // remain accurate for diagnostics.  Non-newline characters are replaced with
+  // spaces so column positions of surrounding tokens are unaffected.
+  const processedText = text.replace(/\/\*[\s\S]*?\*\//g, m =>
+    m.replace(/[^\n]/g, ' '));
+  const lines = processedText.split(/\r?\n/);
   const doc: BisonDocument = {
     tokens: new Map(),
     nonTerminals: new Map(),
