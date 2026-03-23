@@ -1890,6 +1890,149 @@ console.log('\n\n=== TEST: $n bounds — literals counted as symbols ===\n');
 }
 
 // ════════════════════════════════════════
+// TEST: Lowercase / mixed-case token names (issue #5)
+// ════════════════════════════════════════
+console.log('\n=== TEST: Lowercase and mixed-case token names (issue #5) ===\n');
+
+{
+  // Each %token declaration with a lowercase/mixed name should produce exactly one token entry.
+  const cases: Array<{ line: string; name: string }> = [
+    { line: '%token STANDARD_202x "STANDARD-202x"', name: 'STANDARD_202x' },
+    { line: '%token lower_case_tok "lower"',         name: 'lower_case_tok' },
+    { line: '%token MIXEDcase123 "mixed"',            name: 'MIXEDcase123'  },
+    { line: '%token A_1_B_2_C "alias"',               name: 'A_1_B_2_C'    },
+  ];
+
+  for (const { line, name } of cases) {
+    const src = [line, '%%', 'start : ;', '%%'].join('\n');
+    const doc = parseBisonDocument(src);
+    assert(doc.tokens.has(name),
+      `parseTokenNames: '${line}' → token '${name}' is registered`);
+    assert(doc.tokens.size === 1,
+      `parseTokenNames: '${line}' → exactly 1 token (got ${doc.tokens.size}: ${[...doc.tokens.keys()].join(', ')})`);
+  }
+
+  // When those tokens are USED in rules → 0 "unused token" warnings.
+  const usedSrc = [
+    '%token STANDARD_202x "STANDARD-202x"',
+    '%token lower_case_tok "lower"',
+    '%token MIXEDcase123 "mixed"',
+    '%token A_1_B_2_C "alias"',
+    '%%',
+    'start : STANDARD_202x lower_case_tok MIXEDcase123 A_1_B_2_C ;',
+    '%%',
+  ].join('\n');
+  const usedDoc = parseBisonDocument(usedSrc);
+  const usedDiags = computeBisonDiagnostics(usedDoc, usedSrc);
+  const unusedWarnings = usedDiags.filter(d => d.message.includes('declared but never used'));
+  assert(unusedWarnings.length === 0,
+    `All four mixed-case tokens used in rules → 0 "unused" warnings (got ${unusedWarnings.length}: ${unusedWarnings.map(d => d.message).join('; ')})`);
+
+  // When those tokens are NOT used → exactly 1 warning each, with the full token name.
+  const unusedSrc = [
+    '%token STANDARD_202x "STANDARD-202x"',
+    '%token lower_case_tok "lower"',
+    '%token MIXEDcase123 "mixed"',
+    '%token A_1_B_2_C "alias"',
+    '%%',
+    'start : ;',
+    '%%',
+  ].join('\n');
+  const unusedDoc = parseBisonDocument(unusedSrc);
+  const unusedDiags = computeBisonDiagnostics(unusedDoc, unusedSrc);
+  const allUnused = unusedDiags.filter(d => d.message.includes('declared with %token but never used'));
+  assert(allUnused.length === 4,
+    `Four unused mixed-case tokens → exactly 4 warnings (got ${allUnused.length}: ${allUnused.map(d => d.message).join('; ')})`);
+  for (const name of ['STANDARD_202x', 'lower_case_tok', 'MIXEDcase123', 'A_1_B_2_C']) {
+    const w = allUnused.find(d => d.message.includes(`'${name}'`));
+    assert(w !== undefined,
+      `Unused token warning for '${name}' uses the full name (not a fragment)`);
+  }
+}
+
+// ════════════════════════════════════════
+// TEST: Comments in rules ignored (issue #8)
+// ════════════════════════════════════════
+console.log('\n=== TEST: Comments in rules ignored (issue #8) ===\n');
+
+{
+  // Test 1: Inline /* */ block comment — token inside must NOT be flagged
+  const src1 = [
+    '%token TOKEN_A TOKEN_B',
+    '%%',
+    'start : rule ;',
+    'rule : TOKEN_A /* FAKE_COMMENT_TOKEN */ TOKEN_B { $$ = $1; }',
+    '%%',
+  ].join('\n');
+  const doc1 = parseBisonDocument(src1);
+  const diags1 = computeBisonDiagnostics(doc1, src1);
+  const fake1 = diags1.filter(d => d.message.includes('FAKE_COMMENT_TOKEN'));
+  assert(fake1.length === 0,
+    `FAKE_COMMENT_TOKEN inside /* */ must NOT be flagged (got ${fake1.length} diag(s): ${fake1.map(d => d.message).join('; ')})`);
+
+  // Test 2: // line comment — token inside must NOT be flagged
+  const src2 = [
+    '%token TOKEN_C',
+    '%%',
+    'start : rule ;',
+    'rule : TOKEN_C // ANOTHER_FAKE_TOKEN',
+    '    { }',
+    '%%',
+  ].join('\n');
+  const doc2 = parseBisonDocument(src2);
+  const diags2 = computeBisonDiagnostics(doc2, src2);
+  const fake2 = diags2.filter(d => d.message.includes('ANOTHER_FAKE_TOKEN'));
+  assert(fake2.length === 0,
+    `ANOTHER_FAKE_TOKEN after // must NOT be flagged (got ${fake2.length} diag(s))`);
+
+  // Test 3: Action block { } — identifier inside must NOT be flagged
+  const src3 = [
+    '%token TOKEN_D',
+    '%%',
+    'start : rule ;',
+    'rule : TOKEN_D { int x = LOOKS_LIKE_TOKEN; }',
+    '%%',
+  ].join('\n');
+  const doc3 = parseBisonDocument(src3);
+  const diags3 = computeBisonDiagnostics(doc3, src3);
+  const fake3 = diags3.filter(d => d.message.includes('LOOKS_LIKE_TOKEN'));
+  assert(fake3.length === 0,
+    `LOOKS_LIKE_TOKEN inside action block { } must NOT be flagged (got ${fake3.length} diag(s))`);
+
+  // Test 4: Multi-line /* */ block comment — tokens inside must NOT be flagged
+  const src4 = [
+    '%token TOKEN_E TOKEN_F',
+    '%%',
+    'start : rule ;',
+    'rule : TOKEN_E /* FAKE_1',
+    '               FAKE_2 */ TOKEN_F',
+    '%%',
+  ].join('\n');
+  const doc4 = parseBisonDocument(src4);
+  const diags4 = computeBisonDiagnostics(doc4, src4);
+  const fake4a = diags4.filter(d => d.message.includes('FAKE_1'));
+  const fake4b = diags4.filter(d => d.message.includes('FAKE_2'));
+  assert(fake4a.length === 0,
+    `FAKE_1 inside multi-line /* */ must NOT be flagged (got ${fake4a.length} diag(s))`);
+  assert(fake4b.length === 0,
+    `FAKE_2 inside multi-line /* */ must NOT be flagged (got ${fake4b.length} diag(s))`);
+
+  // Test 5: Real undeclared token (not in a comment or action) MUST be flagged
+  const src5 = [
+    '%token TOKEN_G',
+    '%%',
+    'start : rule ;',
+    'rule : TOKEN_G UNDECLARED_TOKEN',
+    '%%',
+  ].join('\n');
+  const doc5 = parseBisonDocument(src5);
+  const diags5 = computeBisonDiagnostics(doc5, src5);
+  const undeclared5 = diags5.filter(d => d.message.includes('UNDECLARED_TOKEN'));
+  assert(undeclared5.length >= 1,
+    `UNDECLARED_TOKEN (not in /* */ or {}) MUST be flagged (got ${undeclared5.length} diag(s))`);
+}
+
+// ════════════════════════════════════════
 // SUMMARY
 // ════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);
