@@ -1951,6 +1951,88 @@ console.log('\n=== TEST: Lowercase and mixed-case token names (issue #5) ===\n')
 }
 
 // ════════════════════════════════════════
+// TEST: Comments in rules ignored (issue #8)
+// ════════════════════════════════════════
+console.log('\n=== TEST: Comments in rules ignored (issue #8) ===\n');
+
+{
+  // Test 1: Inline /* */ block comment — token inside must NOT be flagged
+  const src1 = [
+    '%token TOKEN_A TOKEN_B',
+    '%%',
+    'start : rule ;',
+    'rule : TOKEN_A /* FAKE_COMMENT_TOKEN */ TOKEN_B { $$ = $1; }',
+    '%%',
+  ].join('\n');
+  const doc1 = parseBisonDocument(src1);
+  const diags1 = computeBisonDiagnostics(doc1, src1);
+  const fake1 = diags1.filter(d => d.message.includes('FAKE_COMMENT_TOKEN'));
+  assert(fake1.length === 0,
+    `FAKE_COMMENT_TOKEN inside /* */ must NOT be flagged (got ${fake1.length} diag(s): ${fake1.map(d => d.message).join('; ')})`);
+
+  // Test 2: // line comment — token inside must NOT be flagged
+  const src2 = [
+    '%token TOKEN_C',
+    '%%',
+    'start : rule ;',
+    'rule : TOKEN_C // ANOTHER_FAKE_TOKEN',
+    '    { }',
+    '%%',
+  ].join('\n');
+  const doc2 = parseBisonDocument(src2);
+  const diags2 = computeBisonDiagnostics(doc2, src2);
+  const fake2 = diags2.filter(d => d.message.includes('ANOTHER_FAKE_TOKEN'));
+  assert(fake2.length === 0,
+    `ANOTHER_FAKE_TOKEN after // must NOT be flagged (got ${fake2.length} diag(s))`);
+
+  // Test 3: Action block { } — identifier inside must NOT be flagged
+  const src3 = [
+    '%token TOKEN_D',
+    '%%',
+    'start : rule ;',
+    'rule : TOKEN_D { int x = LOOKS_LIKE_TOKEN; }',
+    '%%',
+  ].join('\n');
+  const doc3 = parseBisonDocument(src3);
+  const diags3 = computeBisonDiagnostics(doc3, src3);
+  const fake3 = diags3.filter(d => d.message.includes('LOOKS_LIKE_TOKEN'));
+  assert(fake3.length === 0,
+    `LOOKS_LIKE_TOKEN inside action block { } must NOT be flagged (got ${fake3.length} diag(s))`);
+
+  // Test 4: Multi-line /* */ block comment — tokens inside must NOT be flagged
+  const src4 = [
+    '%token TOKEN_E TOKEN_F',
+    '%%',
+    'start : rule ;',
+    'rule : TOKEN_E /* FAKE_1',
+    '               FAKE_2 */ TOKEN_F',
+    '%%',
+  ].join('\n');
+  const doc4 = parseBisonDocument(src4);
+  const diags4 = computeBisonDiagnostics(doc4, src4);
+  const fake4a = diags4.filter(d => d.message.includes('FAKE_1'));
+  const fake4b = diags4.filter(d => d.message.includes('FAKE_2'));
+  assert(fake4a.length === 0,
+    `FAKE_1 inside multi-line /* */ must NOT be flagged (got ${fake4a.length} diag(s))`);
+  assert(fake4b.length === 0,
+    `FAKE_2 inside multi-line /* */ must NOT be flagged (got ${fake4b.length} diag(s))`);
+
+  // Test 5: Real undeclared token (not in a comment or action) MUST be flagged
+  const src5 = [
+    '%token TOKEN_G',
+    '%%',
+    'start : rule ;',
+    'rule : TOKEN_G UNDECLARED_TOKEN',
+    '%%',
+  ].join('\n');
+  const doc5 = parseBisonDocument(src5);
+  const diags5 = computeBisonDiagnostics(doc5, src5);
+  const undeclared5 = diags5.filter(d => d.message.includes('UNDECLARED_TOKEN'));
+  assert(undeclared5.length >= 1,
+    `UNDECLARED_TOKEN (not in /* */ or {}) MUST be flagged (got ${undeclared5.length} diag(s))`);
+}
+
+// ════════════════════════════════════════
 // SUMMARY
 // ════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);
