@@ -1890,6 +1890,67 @@ console.log('\n\n=== TEST: $n bounds — literals counted as symbols ===\n');
 }
 
 // ════════════════════════════════════════
+// TEST: Lowercase / mixed-case token names (issue #5)
+// ════════════════════════════════════════
+console.log('\n=== TEST: Lowercase and mixed-case token names (issue #5) ===\n');
+
+{
+  // Each %token declaration with a lowercase/mixed name should produce exactly one token entry.
+  const cases: Array<{ line: string; name: string }> = [
+    { line: '%token STANDARD_202x "STANDARD-202x"', name: 'STANDARD_202x' },
+    { line: '%token lower_case_tok "lower"',         name: 'lower_case_tok' },
+    { line: '%token MIXEDcase123 "mixed"',            name: 'MIXEDcase123'  },
+    { line: '%token A_1_B_2_C "alias"',               name: 'A_1_B_2_C'    },
+  ];
+
+  for (const { line, name } of cases) {
+    const src = [line, '%%', 'start : ;', '%%'].join('\n');
+    const doc = parseBisonDocument(src);
+    assert(doc.tokens.has(name),
+      `parseTokenNames: '${line}' → token '${name}' is registered`);
+    assert(doc.tokens.size === 1,
+      `parseTokenNames: '${line}' → exactly 1 token (got ${doc.tokens.size}: ${[...doc.tokens.keys()].join(', ')})`);
+  }
+
+  // When those tokens are USED in rules → 0 "unused token" warnings.
+  const usedSrc = [
+    '%token STANDARD_202x "STANDARD-202x"',
+    '%token lower_case_tok "lower"',
+    '%token MIXEDcase123 "mixed"',
+    '%token A_1_B_2_C "alias"',
+    '%%',
+    'start : STANDARD_202x lower_case_tok MIXEDcase123 A_1_B_2_C ;',
+    '%%',
+  ].join('\n');
+  const usedDoc = parseBisonDocument(usedSrc);
+  const usedDiags = computeBisonDiagnostics(usedDoc, usedSrc);
+  const unusedWarnings = usedDiags.filter(d => d.message.includes('declared but never used'));
+  assert(unusedWarnings.length === 0,
+    `All four mixed-case tokens used in rules → 0 "unused" warnings (got ${unusedWarnings.length}: ${unusedWarnings.map(d => d.message).join('; ')})`);
+
+  // When those tokens are NOT used → exactly 1 warning each, with the full token name.
+  const unusedSrc = [
+    '%token STANDARD_202x "STANDARD-202x"',
+    '%token lower_case_tok "lower"',
+    '%token MIXEDcase123 "mixed"',
+    '%token A_1_B_2_C "alias"',
+    '%%',
+    'start : ;',
+    '%%',
+  ].join('\n');
+  const unusedDoc = parseBisonDocument(unusedSrc);
+  const unusedDiags = computeBisonDiagnostics(unusedDoc, unusedSrc);
+  const allUnused = unusedDiags.filter(d => d.message.includes('declared with %token but never used'));
+  assert(allUnused.length === 4,
+    `Four unused mixed-case tokens → exactly 4 warnings (got ${allUnused.length}: ${allUnused.map(d => d.message).join('; ')})`);
+  for (const name of ['STANDARD_202x', 'lower_case_tok', 'MIXEDcase123', 'A_1_B_2_C']) {
+    const w = allUnused.find(d => d.message.includes(`'${name}'`));
+    assert(w !== undefined,
+      `Unused token warning for '${name}' uses the full name (not a fragment)`);
+  }
+}
+
+// ════════════════════════════════════════
 // SUMMARY
 // ════════════════════════════════════════
 console.log(`\n${'='.repeat(50)}`);

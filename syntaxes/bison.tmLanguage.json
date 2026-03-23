@@ -97,7 +97,7 @@
 
     "rule-prec": {
       "comment": "%prec TOKEN in rules",
-      "match": "(%prec)\\s+([A-Z_][A-Z0-9_]*)",
+      "match": "(%prec)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
       "captures": {
         "1": { "name": "keyword.control.prec.bison" },
         "2": { "name": "entity.name.constant.token.bison" }
@@ -111,9 +111,9 @@
     },
 
     "token-reference": {
-      "comment": "Token references (ALL_CAPS identifiers) in rules",
+      "comment": "Token and symbol references in grammar rules (may be ALL_CAPS, mixed-case, or lowercase)",
       "name": "entity.name.constant.token.bison",
-      "match": "\\b[A-Z_][A-Z0-9_]{1,}\\b"
+      "match": "\\b[a-zA-Z_][a-zA-Z0-9_]+\\b"
     },
 
     "semantic-values": {
@@ -156,7 +156,7 @@
 
     "inline-token-directive": {
       "comment": "%token inside rules section (e.g., %token CHUNKS \"_chunks\")",
-      "match": "^\\s*(%token)\\s+([A-Z_][A-Z0-9_]*)(?:\\s+(\"[^\"]*\"))?",
+      "match": "^\\s*(%token)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\\s+(\"[^\"]*\"))?",
       "captures": {
         "1": { "name": "storage.type.token.bison" },
         "2": { "name": "entity.name.constant.token.bison" },
@@ -402,7 +402,7 @@
 
     "token-continuation-line": {
       "comment": "Indented continuation lines for multi-line %token declarations",
-      "match": "^(\\s+)([A-Z_][A-Z0-9_]*(?:\\s+(?:\"[^\"]*\"|\\d+))?(?:\\s+[A-Z_][A-Z0-9_]*(?:\\s+(?:\"[^\"]*\"|\\d+))?)*)",
+      "match": "^(\\s+)([a-zA-Z_][a-zA-Z0-9_]*(?:\\s+(?:\"[^\"]*\"|\\d+))?(?:\\s+[a-zA-Z_][a-zA-Z0-9_]*(?:\\s+(?:\"[^\"]*\"|\\d+))?)*)",
       "captures": {
         "2": { "patterns": [{ "include": "#token-list" }] }
       }
@@ -413,7 +413,7 @@
       "patterns": [
         {
           "name": "entity.name.constant.token.bison",
-          "match": "[A-Z_][A-Z0-9_]*"
+          "match": "[a-zA-Z_][a-zA-Z0-9_]*"
         },
         {
           "name": "constant.numeric.bison",

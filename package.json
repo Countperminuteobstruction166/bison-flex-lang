@@ -105,13 +105,6 @@
         "path": "./snippets/flex.json"
       }
     ],
-    "iconThemes": [
-      {
-        "id": "bison-flex-icons",
-        "label": "Bison/Flex File Icons",
-        "path": "./bison-flex-icon-theme.json"
-      }
-    ],
     "commands": [
       {
         "command": "bisonFlex.compileBison",

@@ -190,13 +190,13 @@ export function parseBisonDocument(text: string): BisonDocument {
     // %expect / %expect-rr
     // %require, %language, %skeleton, etc. — parsed for awareness but no special handling
 
-    // Continuation lines for %token (indented ALL_CAPS names after a %token line)
-    if (lastTokenDirectiveLine >= 0 && i === lastTokenDirectiveLine + 1 && /^\s+[A-Z_]/.test(line)) {
+    // Continuation lines for %token (indented names after a %token line)
+    if (lastTokenDirectiveLine >= 0 && i === lastTokenDirectiveLine + 1 && /^\s+[a-zA-Z_]/.test(line)) {
       parseTokenNames(trimmed, lastTokenType, i, doc);
       lastTokenDirectiveLine = i; // allow chaining
       continue;
     }
-    if (/^\s+[A-Z_]/.test(line) && i > 0 && i <= lastTokenDirectiveLine + 1) {
+    if (/^\s+[a-zA-Z_]/.test(line) && i > 0 && i <= lastTokenDirectiveLine + 1) {
       parseTokenNames(trimmed, lastTokenType, i, doc);
       lastTokenDirectiveLine = i;
       continue;
@@ -416,7 +416,8 @@ function getFirstSymbol(text: string): string | undefined {
 
 function parseTokenNames(text: string, type: string | undefined, lineNum: number, doc: BisonDocument): void {
   // Match patterns like: NAME "alias" VALUE  or just NAME
-  const regex = /([A-Z_][A-Z0-9_]*)\s*(?:("(?:[^"\\]|\\.)*")\s*)?(?:(\d+)\s*)?/g;
+  // Use [a-zA-Z_][a-zA-Z0-9_]* to support lowercase letters and digits in token names.
+  const regex = /([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:("(?:[^"\\]|\\.)*")\s*)?(?:(\d+)\s*)?/g;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(text)) !== null) {
     const name = match[1];
