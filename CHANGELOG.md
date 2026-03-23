@@ -2,6 +2,27 @@
 
 All notable changes to the **Bison/Flex Language Support** extension will be documented in this file.
 
+## [1.1.3] - 2026-03-23
+
+### Fixed
+
+- **Bison — comments and action blocks**: Identifiers inside `/* */` block comments
+  (including multi-line), `//` line comments, and `{ }` action blocks are no longer
+  falsely reported as undeclared tokens
+
+---
+
+## [1.1.2] - 2026-03-20
+
+### Fixed
+
+- **Bison — lowercase and mixed-case token names**: Tokens with lowercase letters or
+  digits in their name (e.g. `lower_case_tok`, `STANDARD_202x`, `MIXEDcase123`) are
+  now correctly parsed from `%token` declarations and no longer trigger false
+  "unused token" warnings
+
+---
+
 ## [1.1.1] - 2026-03-19
 
 ### Fixed
